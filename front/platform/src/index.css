@@ -1,0 +1,85 @@
+@import 'tailwindcss';
+
+/* 디자인 토큰 CSS 변수 정의 */
+:root {
+  /* Primary 색상 */
+  --primary-main: #274ba9;
+  --primary-dark: #005dab;
+  --primary-light: #0663b2;
+  --primary-lighter: #e7f3ff;
+
+  /* Secondary 색상 */
+  --secondary-main: #e7e8ea;
+  --secondary-dark: #9f9f9f;
+  --secondary-light: #f3f4f6;
+  --secondary-lighter: #f9fafb;
+
+  /* Neutral 색상 (Gray Scale) */
+  --neutral-50: #f9fafb;
+  --neutral-100: #f3f4f6;
+  --neutral-200: #e5e7eb;
+  --neutral-300: #d1d5db;
+  --neutral-400: #9ca3af;
+  --neutral-500: #6b7280;
+  --neutral-600: #4b5563;
+  --neutral-700: #374151;
+  --neutral-800: #1f2937;
+  --neutral-900: #111827;
+
+  /* Table 색상 */
+  --table-header-bg: #e7e8ea;
+  --table-header-text: #0663b2;
+  --table-header-border: #9f9f9f;
+  --table-border-primary: #005dab;
+  --table-border-secondary: #9f9f9f;
+  --table-border-light: #f3f4f6;
+  --table-cell-bg: #ffffff;
+  --table-cell-bg-even: #f9fafb;
+  --table-cell-bg-hover: #eff6ff;
+  --table-cell-bg-selected: #dbeafe;
+  --table-cell-bg-clicked: #bfdbfe;
+  --table-cell-text: #374151;
+
+  /* Semantic 색상 */
+  --semantic-success: #10b981;
+  --semantic-warning: #f59e0b;
+  --semantic-error: #ef4444;
+  --semantic-info: #3b82f6;
+
+  /* 폰트 패밀리 */
+  --font-body: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-heading: 'Nanum Gothic', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Roboto', 'Noto Sans KR', monospace;
+
+  /* 폰트 크기 */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+
+  /* 폰트 무게 */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* 간격 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+  --spacing-3xl: 48px;
+  --spacing-4xl: 64px;
+}
+
+/* 기본 폰트 설정 */
+body {
+  font-family: var(--font-body);
+}

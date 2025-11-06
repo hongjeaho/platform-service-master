@@ -1,0 +1,18 @@
+/**
+ * ConclusionReviewComplete 컴포넌트 스타일
+ * 디자인 토큰 기반 CSS Module
+ */
+
+/* 섹션 간 간격 */
+.sectionSpacing {
+  margin-top: var(--spacing-xl);
+}
+
+/* 버튼 컨테이너 */
+.buttonContainer {
+  margin-top: var(--spacing-xl);
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-sm);
+}

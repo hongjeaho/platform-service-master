@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.platform.datasource.base.mapper.batch.ltisApi.LtisDataMapper">
+    <insert id="mergeIntoLtisStatus">
+        INSERT INTO ltis_status (judg_seq, judg_div_cd, judg_div_nm, stat_cd, stat_nm, use_yn, bef_case_judg_seq,
+                                 rept_mod_dt, owner_mod_dt, rept_owner_mod_dt, recm_mod_dt, implementer_mod_dt,
+                                 ltis_mod_dt, created_time)
+        SELECT t.judg_seq,
+               t.judg_div_cd,
+               t.judg_div_nm,
+               t.stat_cd,
+               t.stat_nm,
+               t.use_yn,
+               t.bef_case_judg_seq,
+               t.lst_rept_mod_dt,
+               t.lst_ownr_mod_dt,
+               t.lst_rept_ownr_mod_dt,
+               t.lst_recm_mod_dt,
+               t.implementer_mod_dt,
+               t.mod_dt,
+               t.created_time
+        FROM ltis_tmp t
+                 LEFT JOIN ltis_status s ON t.judg_seq = s.judg_seq
+        WHERE s.judg_seq IS NULL
+           OR t.mod_dt > s.ltis_mod_dt
+        ON DUPLICATE KEY UPDATE judg_div_cd        = t.judg_div_cd,
+                                judg_div_nm        = t.judg_div_nm,
+                                stat_cd            = t.stat_cd,
+                                stat_nm            = t.stat_nm,
+                                use_yn             = t.use_yn,
+                                bef_case_judg_seq  = t.bef_case_judg_seq,
+                                rept_mod_dt        = t.lst_rept_mod_dt,
+                                owner_mod_dt       = t.lst_ownr_mod_dt,
+                                rept_owner_mod_dt  = t.lst_rept_ownr_mod_dt,
+                                recm_mod_dt        = t.lst_recm_mod_dt,
+                                implementer_mod_dt = t.implementer_mod_dt,
+                                ltis_mod_dt        = t.mod_dt,
+                                updated_time       = NOW()
+    </insert>
+    <insert id="mergeIntoLtisInfo">
+        INSERT INTO ltis_info (judg_seq, recep_dt, judg_dt, implementer_dt, recm_req_prc_dt, case_no, case_title,
+                               desn_ins, address, dession_corp, corp_nm, implementer_biz_nm, business_type, land_cnt,
+                               land_owner_cnt, object_cnt, object_owner_cnt, biz_oprt_price,
+                               frst_comp_amt_sum, secd_comp_amt_sum, created_time)
+        SELECT t.judg_seq,
+               t.recep_dt,
+               t.judg_dt,
+               t.implementer_dt,
+               t.recmreq_prce_dt,
+               t.case_no,
+               t.case_title,
+               t.desn_ins,
+               t.address,
+               t.dession_corp,
+               t.corp_nm,
+               t.implementer_biz_nm,
+               t.business_type,
+               t.land_cnt,
+               t.land_ownr_cnt,
+               t.object_cnt,
+               t.object_ownr_cnt,
+               t.biz_oprt_prce,
+               t.frst_comp_amt_sum,
+               t.secd_comp_amt_sum,
+               t.created_time
+        FROM ltis_tmp t
+                 LEFT JOIN ltis_status s ON t.judg_seq = s.judg_seq
+        WHERE s.judg_seq IS NULL
+           OR t.mod_dt > s.ltis_mod_dt
+        ON DUPLICATE KEY UPDATE recep_dt           = t.recep_dt,
+                                judg_dt            = t.judg_dt,
+                                implementer_dt     = t.implementer_dt,
+                                recm_req_prc_dt    = t.recmreq_prce_dt,
+                                case_no            = t.case_no,
+                                case_title         = t.case_title,
+                                desn_ins           = t.desn_ins,
+                                address            = t.address,
+                                dession_corp       = t.dession_corp,
+                                corp_nm            = t.corp_nm,
+                                implementer_biz_nm = t.implementer_biz_nm,
+                                business_type      = t.business_type,
+                                land_cnt           = t.land_cnt,
+                                land_owner_cnt     = t.land_ownr_cnt,
+                                object_cnt         = t.object_cnt,
+                                object_owner_cnt   = t.object_ownr_cnt,
+                                biz_oprt_price     = t.biz_oprt_prce,
+                                frst_comp_amt_sum  = t.frst_comp_amt_sum,
+                                secd_comp_amt_sum  = t.secd_comp_amt_sum,
+                                updated_time       = NOW()
+    </insert>
+    <insert id="mergeIntoLtisCharge">
+        INSERT INTO ltis_charge(judg_seq, charge_nm, charge_id, charge_email, implementer_nm, implementer_tel,
+                                implementer_id, implementer_email, implementer_phone, created_time)
+        SELECT t.judg_seq,
+               t.charge_nm,
+               t.charge_id,
+               t.charge_email,
+               t.implementer_nm,
+               t.implementer_tel,
+               t.implementer_id,
+               t.implementer_email,
+               t.implementer_phone,
+               t.created_time
+        FROM ltis_tmp t
+                 LEFT JOIN ltis_status s ON t.judg_seq = s.judg_seq
+        WHERE s.judg_seq IS NULL
+           OR t.mod_dt > s.ltis_mod_dt
+        ON DUPLICATE KEY UPDATE charge_nm         = t.charge_nm,
+                                charge_id         = t.charge_id,
+                                charge_email      = t.charge_email,
+                                implementer_nm    = t.implementer_nm,
+                                implementer_tel   = t.implementer_tel,
+                                implementer_id    = t.implementer_id,
+                                implementer_email = t.implementer_email,
+                                implementer_phone = t.implementer_phone,
+                                updated_time      = NOW()
+    </insert>
+    <delete id="deleteLtisTmpData">
+        DELETE
+        FROM ltis_tmp
+        WHERE judg_seq > 0
+    </delete>
+    <select id="getReptJudgSeq" resultType="Long">
+        SELECT t.judg_seq
+        FROM ltis_tmp t
+                 LEFT JOIN ltis_status s ON t.judg_seq = s.judg_seq
+        WHERE s.judg_seq IS NULL
+           OR t.lst_rept_mod_dt  > s.rept_mod_dt;
+    </select>
+    <insert id="insertReptInfo" parameterType="java.util.List">
+        INSERT INTO ltis_rept_info (rept_seq, judg_seq, rept_lst_seq, sido_gungu_cd, domyri_cd, mont_div_cd,
+        main_strt_no, sub_strt_no, strt_other, rept_addr, area_amot, obst_kind_nm, obst_stuc1_nm, obst_stuc2_nm,
+        bef_calc_cd, frst_comp_calc_cd, secd_comp_calc_cd, thrd_comp_calc_cd, comp_avrg_calc_cd, judg_calc_cd,
+        bef_unit_cost, frst_comp_unit_cost, secd_comp_unit_cost, thrd_comp_unit_cost, comp_avrg_unit_cost,
+        judg_unit_cost, rights_nm, sfce_rights_yn, land_obst_kind_cd, rept_lst_bef_seq, area_unit, obst_stuc1_cd,
+        obst_stuc2_cd, omit_yn, mod_dt)
+        VALUES
+        <foreach collection="ltisReptInfoEntities" item="item" separator=",">
+            (#{item.reptSeq},#{item.judgSeq}, #{item.reptLstSeq}, #{item.sidoGunguCd}, #{item.domyriCd},
+            #{item.montDivCd}, #{item.mainStrtNo}, #{item.subStrtNo}, #{item.strtOther}, #{item.reptAddr},
+            #{item.areaAmot}, #{item.obstKindNm}, #{item.obstStuc1Nm}, #{item.obstStuc2Nm}, #{item.befCalcCd},
+            #{item.frstCompCalcCd}, #{item.secdCompCalcCd}, #{item.thrdCompCalcCd}, #{item.compAvrgCalcCd},
+            #{item.judgCalcCd}, #{item.befUnitCost}, #{item.frstCompUnitCost}, #{item.secdCompUnitCost},
+            #{item.thrdCompUnitCost}, #{item.compAvrgUnitCost}, #{item.judgUnitCost},
+            #{item.rightsNm}, #{item.sfceRightsYn}, #{item.landObstKindCd},
+            #{item.reptLstBefSeq}, #{item.areaUnit}, #{item.obstStuc1Cd}, #{item.obstStuc2Cd},
+            #{item.omitYn}, #{item.modDt})
+        </foreach>
+    </insert>
+    <select id="getOwnrJudgSeq" resultType="java.lang.Long">
+        SELECT t.judg_seq
+        FROM ltis_tmp t
+                 LEFT JOIN ltis_status s ON t.judg_seq = s.judg_seq
+        WHERE s.judg_seq IS NULL
+           OR t.lst_ownr_mod_dt > s.owner_mod_dt;
+    </select>
+    <select id="getReptOwnrJudgSeq" resultType="java.lang.Long">
+        SELECT t.judg_seq
+        FROM ltis_tmp t
+                 LEFT JOIN ltis_status s ON t.judg_seq = s.judg_seq
+        WHERE s.judg_seq IS NULL
+           OR t.lst_rept_ownr_mod_dt > s.rept_owner_mod_dt;
+    </select>
+    <select id="getRecmJudgSeq" resultType="java.lang.Long">
+        SELECT t.judg_seq
+        FROM ltis_tmp t
+                 LEFT JOIN ltis_status s ON t.judg_seq = s.judg_seq
+        WHERE s.judg_seq IS NULL
+           OR t.lst_recm_mod_dt > s.recm_mod_dt;
+    </select>
+    <insert id="insertOwnrInfo" parameterType="java.util.List">
+        INSERT INTO ltis_ownr_info (ownr_seq, judg_seq, ownr_intr_nm, ownr_intr_yn, delv_zip_no, delv_dtl_addr1,
+        delv_dtl_addr2, depy_zip_no, depy_dtl_addr1, depy_dtl_addr2, regt_no, ownr_intr_rmk, regt_year,
+        bef_ownr_intr_seq, represent_yn, agree_yn, add_dt1, add_dt2, add_dt3, ownr_intr_nm_seq, mod_dt)
+        VALUES
+        <foreach collection="ltisOwnrInfoEntities" item="item" separator=",">
+            (#{item.ownrSeq}, #{item.judgSeq}, #{item.ownrIntrNm}, #{item.ownrIntrYn},
+            #{item.delvZipNo}, #{item.delvDtlAddr1}, #{item.delvDtlAddr2},
+            #{item.depyZipNo}, #{item.depyDtlAddr1}, #{item.depyDtlAddr2},
+            #{item.regtNo}, #{item.ownrIntrRmk}, #{item.regtYear},
+            #{item.befOwnrIntrSeq}, #{item.representYn},
+            #{item.agreeYn}, #{item.addDt1}, #{item.addDt2}, #{item.addDt3},
+            #{item.ownrIntrNmSeq}, #{item.modDt})
+        </foreach>
+    </insert>
+    <insert id="insertReptOwnrInfo" parameterType="java.util.List">
+        INSERT INTO ltis_rept_ownr_info (rept_ownr_intr_seq, rept_seq, judg_seq, ownr_intr_yn, ownr_seq, intr_seq,
+        intr_rights_nm, land_shre, bef_amt, frst_comp_amt, secd_comp_amt, thrd_comp_amt, comp_avrg_amt, judg_amt,
+        ownr_regt_seq, intr_regt_seq, bef_rept_ownr_intr_seq, add_charge_yn, judg_unit_cost, omit_yn, judg_calc_cd,
+        rept_ownr_intr_rmk, mod_dt)
+        VALUES
+        <foreach collection="ltisReptOwnrInfoEntities" item="item" separator=",">
+            (#{item.reptOwnrIntrSeq}, #{item.reptSeq}, #{item.judgSeq},
+            #{item.ownrIntrYn}, #{item.ownrSeq}, #{item.intrSeq},
+            #{item.intrRightsNm}, #{item.landShre}, #{item.befAmt},
+            #{item.frstCompAmt}, #{item.secdCompAmt}, #{item.thrdCompAmt},
+            #{item.compAvrgAmt}, #{item.judgAmt},
+            #{item.ownrRegtSeq}, #{item.intrRegtSeq}, #{item.befReptOwnrIntrSeq},
+            #{item.addChargeYn}, #{item.judgUnitCost}, #{item.omitYn},
+            #{item.judgCalcCd},
+            #{item.reptOwnrIntrRmk}, #{item.modDt})
+        </foreach>
+    </insert>
+    <insert id="insertRecmInfo" parameterType="java.util.List">
+        INSERT INTO ltis_recm_info(recm_advc_seq, judg_seq, grp_div_cd, comp_cd, comy_abbv, recm_req_dt,
+        recm_req_sbmt_dt, case_no, rwrd_prce, prce_dt, prgs_stat_cd, appr_path, appr_inst_info, rept_mod_req_dt,
+        ichr_apps_lics_no, appr_email, appr_nm, appr_offc_nm, appr_offc_addr, appr_dtl_addr, appr_ofce_phon_no,
+        appr_phon_no, appr_ofce_faxno, recm_req_prce_dt, mod_dt)
+        VALUES
+        <foreach collection="ltisRecmInfoEntities" item="item" separator=",">
+            (#{item.recmAdvcSeq}, #{item.judgSeq}, #{item.grpDivCd}, #{item.compCd}, #{item.comyAbbv},
+            #{item.recmReqDt}, #{item.recmReqSbmtDt}, #{item.caseNo}, #{item.rwrdPrce},
+            #{item.prceDt}, #{item.prgsStatCd}, #{item.apprPath}, #{item.apprInstInfo},
+            #{item.reptModReqDt}, #{item.ichrAppsLicsNo}, #{item.apprEmail},
+            #{item.apprNm}, #{item.apprOffcNm}, #{item.apprOffcAddr},
+            #{item.apprDtlAddr}, #{item.apprOfcePhonNo},
+            #{item.apprPhonNo}, #{item.apprOfceFaxno},
+            #{item.recmReqPrceDt}, #{item.modDt})
+        </foreach>
+    </insert>
+    <delete id="deleteReptOwnrInfo">
+        DELETE
+        FROM ltis_rept_ownr_info
+        WHERE judg_seq IN
+        <foreach collection="judgSeqList" item="judgSeq" open="(" separator="," close=")">
+            #{judgSeq}
+        </foreach>
+    </delete>
+    <delete id="deleteRecmInfo">
+        DELETE
+        FROM ltis_recm_info
+        WHERE judg_seq IN
+        <foreach collection="judgSeqList" item="judgSeq" open="(" separator="," close=")">
+            #{judgSeq}
+        </foreach>
+    </delete>
+    <delete id="deleteOwnrInfo">
+        DELETE
+        FROM ltis_ownr_info
+        WHERE judg_seq IN
+        <foreach collection="judgSeqList" item="judgSeq" open="(" separator="," close=")">
+            #{judgSeq}
+        </foreach>
+    </delete>
+    <delete id="deleteReptInfo" parameterType="java.util.List">
+        DELETE
+        FROM ltis_rept_info
+        WHERE judg_seq IN
+        <foreach collection="judgSeqList" item="judgSeq" open="(" separator="," close=")">
+            #{judgSeq}
+        </foreach>
+    </delete>
+    <insert id="insertPnu">
+        INSERT INTO ltis_pnu (judg_seq, pnu, sido_gungu_cd, domyri_cd, mont_div_cd, main_strt_no, sub_strt_no, addr,
+                              created_time)
+        SELECT A.judg_seq,
+               CONCAT(A.sido_gungu_cd, A.DOMYRICD, A.mont_div_cd, A.MAINSTRTNO, A.SUBSTRTNO) AS PNU,
+               A.sido_gungu_cd,
+               A.DOMYRICD,
+               A.mont_div_cd,
+               A.MAINSTRTNO,
+               A.SUBSTRTNO,
+               MAX(A.rept_addr)                                                              AS REPTADDR,
+               NOW()
+        FROM (SELECT TRI.judg_seq,
+                     IF(TLL.judg_dt IS NOT NULL, YEAR(STR_TO_DATE(TLL.judg_dt, '%Y-%m-%d %H:%i:%s')),
+                        YEAR(STR_TO_DATE(LS.ltis_mod_dt, '%Y-%m-%d %H:%i:%s'))) AS YEAR,
+                     TRI.sido_gungu_cd,
+                     CONCAT(SUBSTRING(TRI.domyri_cd, 1, 3), '00')               AS DOMYRICD,
+                     TRI.mont_div_cd,
+                     LPAD(TRI.main_strt_no, 4, '0')                             AS MAINSTRTNO,
+                     LPAD(IFNULL(TRI.sub_strt_no, '0'), 4, '0')                 AS SUBSTRTNO,
+                     TRI.rept_addr
+              FROM ltis_info TLL
+                       JOIN ltis_status LS ON TLL.judg_seq = LS.judg_seq
+                       JOIN ltis_rept_info TRI ON TLL.judg_seq = TRI.judg_seq
+                       JOIN ltis_rept_ownr_info TROI ON TRI.judg_seq = TROI.judg_seq AND TRI.rept_seq = TROI.rept_seq
+              WHERE TRI.rept_addr IS NOT NULL
+                AND TROI.ownr_intr_yn = 'O'
+                AND TRI.land_obst_kind_cd = 'L') A
+        WHERE NOT EXISTS (SELECT 1
+                          FROM ltis_pnu
+                          WHERE ltis_pnu.sido_gungu_cd = A.sido_gungu_cd
+                            AND ltis_pnu.domyri_cd = A.DOMYRICD
+                            AND ltis_pnu.mont_div_cd = A.mont_div_cd
+                            AND ltis_pnu.main_strt_no = A.MAINSTRTNO
+                            AND ltis_pnu.sub_strt_no = A.SUBSTRTNO
+                            AND ltis_pnu.judg_seq = A.judg_seq)
+        GROUP BY A.judg_seq,
+                 A.YEAR,
+                 A.sido_gungu_cd,
+                 A.DOMYRICD,
+                 A.mont_div_cd,
+                 A.MAINSTRTNO,
+                 A.SUBSTRTNO
+    </insert>
+
+</mapper>

@@ -1,0 +1,14 @@
+dependencies {
+    implementation(project(":common-core"))
+
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+    implementation 'com.sndyuk:logback-more-appenders:1.8.8'
+    implementation("ch.qos.logback.contrib:logback-jackson:0.1.5")
+    implementation("ch.qos.logback.contrib:logback-json-classic:0.1.5")
+    implementation("org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.4")
+
+    runtimeOnly("com.mysql:mysql-connector-j")
+}
+

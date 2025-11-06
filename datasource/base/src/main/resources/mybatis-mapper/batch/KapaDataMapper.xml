@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.platform.datasource.base.mapper.batch.kapaApi.KapaDataMapper">
+
+    <select id="selectOfficialPriceRequests"
+            resultType="com.platform.datasource.base.dto.batch.KapaPriceRequest">
+        SELECT BASE.YEAR,
+               BASE.pnu
+        FROM (SELECT ROW_NUMBER() OVER (ORDER BY c_year) AS RNUM,
+                     A.c_year                            AS YEAR,
+                     A.pnu
+              FROM kapa_official_price_tmp A) AS BASE
+        WHERE BASE.RNUM BETWEEN (#{_page} * #{_pagesize}) + 1 AND (#{_page} + 1) * #{_pagesize}
+    </select>
+
+    <select id="selectStandardPriceRequests"
+            resultType="com.platform.datasource.base.dto.batch.KapaPriceRequest">
+        SELECT BASE.YEAR,
+               BASE.s_reg AS reg,
+               BASE.standard_seq_no AS num
+        FROM (SELECT ROW_NUMBER() OVER (ORDER BY c_year) AS RNUM,
+                     A.c_year                            AS YEAR,
+                     A.s_reg,
+                     A.standard_seq_no
+              FROM kapa_standard_price_tmp A) AS BASE
+        WHERE BASE.RNUM BETWEEN (#{_page} * #{_pagesize}) + 1 AND (#{_page} + 1) * #{_pagesize}
+    </select>
+
+    <insert id="insertOfficialPrice">
+        INSERT INTO kapa_official_price ( c_year, pnu, standard_seq_no, reg, eub, san, bun1, bun2, as1,
+                                         eub_name, jibun, area, gakuka, gimok, gimok_str, youngdo, youngdo_str, giyuk,
+                                         giyuk_str, gojeu, gojeu_str, hung, hung_str, ban, ban_str, jub, jub_str, fasc,
+                                         fasc_str, fascy, tm_x, tm_y, use_yn)
+        SELECT #{cYear}, #{pnu}, #{standardSeqNo}, #{reg}, #{eub}, #{san}, #{bun1}, #{bun2}, #{as1},
+               #{eubName}, #{jibun}, #{area}, #{gakuka}, #{gimok}, #{gimokStr}, #{youngdo}, #{youngdoStr},
+               #{giyuk}, #{giyukStr}, #{gojeu}, #{gojeuStr}, #{hung}, #{hungStr}, #{ban}, #{banStr},
+               #{jub}, #{jubStr}, #{fasc}, #{fascStr}, #{fascy},
+               #{tmX}, #{tmY}, #{useYn}
+        FROM dual
+        WHERE NOT EXISTS(
+            SELECT 1 FROM kapa_official_price WHERE c_year = #{cYear} AND pnu = #{pnu}
+        )
+    </insert>
+    <insert id="insertStandardPrice">
+        INSERT INTO kapa_standard_price(seq_no, c_year, s_pnu, s_reg, s_eub, s_san, s_bun1, s_bun2, eub_name, jibun,
+                                        gimok1, gimok1_str, gimok2, gimok2_str, giyuk1, giyuk1_str, youngdo1,
+                                        youngdo1_str, youngdo2, area, gojeu, gojeu_str, hung, hung_str, ban, ban_str,
+                                        jub, jub_str, fasc, fasc_str, gakukc, gakuk1, gakuk2, gakuk3, gakuk4,
+                                        tm_x, tm_y, wgs84_x, wgs84_y, use_yn, created_time)
+        SELECT #{seqNo}, #{cYear}, #{sPnu}, #{sReg}, #{sEub}, #{sSan}, #{sBun1}, #{sBun2}, #{eubName}, #{jibun},
+               #{gimok1}, #{gimok1Str}, #{gimok2}, #{gimok2Str}, #{giyuk1}, #{giyuk1Str}, #{youngdo1},
+               #{youngdo1Str}, #{youngdo2}, #{area}, #{gojeu}, #{gojeuStr}, #{hung}, #{hungStr}, #{ban}, #{banStr},
+               #{jub}, #{jubStr}, #{fasc}, #{fascStr}, #{gakukc}, #{gakuk1}, #{gakuk2}, #{gakuk3}, #{gakuk4},
+               #{tmX}, #{tmY}, #{wgs84X}, #{wgs84Y}, #{useYn}, NOW()
+        FROM dual
+        WHERE NOT EXISTS(
+            SELECT 1 FROM kapa_standard_price WHERE c_year = #{cYear} AND s_reg = #{sReg} AND seq_no = #{seqNo}
+        )
+    </insert>
+
+</mapper>

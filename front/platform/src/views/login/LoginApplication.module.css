@@ -1,0 +1,164 @@
+/* 로그인 페이지 전용 스타일 */
+
+/* 배경 그라데이션 */
+.background {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    to bottom right,
+    var(--primary-lighter),
+    white,
+    var(--secondary-lighter)
+  );
+  padding: var(--spacing-lg);
+}
+
+/* 로그인 카드 */
+.loginCard {
+  background-color: white;
+  border-radius: 1rem;
+  border: 2px solid var(--neutral-300);
+  overflow: hidden;
+  width: 500px;
+  max-width: 100%;
+}
+
+/* 헤더 영역 */
+.header {
+  background-color: var(--primary-main);
+  padding: var(--spacing-lg) var(--spacing-2xl);
+  text-align: left;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: white;
+  margin: 0;
+}
+
+/* 카드 내부 */
+.cardInner {
+  padding: var(--spacing-2xl) var(--spacing-2xl);
+}
+
+/* 폼 컨테이너 */
+.formContainer {
+  background-color: white;
+  border: 1px solid var(--neutral-200);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.formInner {
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+/* 폼 필드 행 */
+.formField {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--neutral-700);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+/* 버튼 그라데이션 */
+.submitButton {
+  width: 100%;
+  background: linear-gradient(to right, var(--primary-light), var(--primary-main));
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: linear-gradient(to right, var(--primary-main), var(--primary-dark));
+  transform: scale(1.02);
+}
+
+.submitButton:focus {
+  box-shadow:
+    0 0 0 2px rgba(6, 99, 178, 0.5),
+    0 0 0 4px rgba(6, 99, 178, 0.1);
+}
+
+.submitButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: scale(1);
+}
+
+/* 로딩 상태 */
+.loadingContent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinnerCircle {
+  opacity: 0.25;
+}
+
+.spinnerPath {
+  opacity: 0.75;
+}
+
+/* 푸터 영역 */
+.footer {
+  padding: var(--spacing-xl) var(--spacing-2xl);
+  background-color: var(--neutral-50);
+  border-top: 1px solid var(--neutral-100);
+}
+
+.footerText {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--neutral-600);
+}
+
+.footerLink {
+  color: var(--primary-light);
+  font-weight: 500;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.footerLink:hover {
+  color: var(--primary-main);
+}

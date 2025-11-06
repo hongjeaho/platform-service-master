@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: springBatchLtis
+  profiles:
+    active: local
+    group:
+      local: base, datasource-base, core
+      dev: base, datasource-base, core, datasource-base-dev
+  batch:
+    jdbc:
+      initialize-schema: always
+server:
+  port: 9091
+
+batch:
+  domain:
+    datasource:
+      poolName: ltis-batch-domain-cp
+      type: com.zaxxer.hikari.HikariDataSource
+      driverClassName: com.mysql.cj.jdbc.Driver
+      jdbcUrl: "jdbc:mysql://localhost:3306/batch?characterEncoding=UTF-8&useTimezone=true&serverTimezone=Asia/Seoul"
+      username: root
+      password: root
+      auto-commit: false
+      sqlScriptEncoding: UTF-8
+      connectionTimeout: 60000
+      maxLifetime: 60000
+      maximumPoolSize: 5
+
+api:
+  kakao:
+    api: https://dapi.kakao.com
+    app-key: fb106fec69607936ca4fa377c4699589
+  kapa:
+    api: https://molit2.kapanet.or.kr
+    path: C:\\filedownload\\
+  ltis:
+    api: https://lti.molit.go.kr/ltisnew
+    path: C:\\filedownload\\
+
+ltis:
+  listCount: 200

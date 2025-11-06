@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.platform.datasource.base.mapper.batch.ltisApi.LtisTmpMapper">
+
+    <insert id="insertLtisListToTmp" parameterType="java.util.List">
+        INSERT INTO ltis_tmp(judg_seq, mod_dt, recep_dt, lst_rept_ownr_mod_dt, lst_recm_mod_dt, lst_rept_mod_dt,
+        lst_ownr_mod_dt, judg_dt, implementer_mod_dt, implementer_dt, recmreq_prce_dt, desn_ins,
+        charge, address, judg_div_nm, judg_div_cd, case_title, implementer,
+        biz_oprt_prce, case_no, bef_case_judg_seq, stat_cd, use_yn, stat_nm,
+        dession_corp, corp_nm, implementer_biz_nm, business_type, land_cnt, land_ownr_cnt,
+        object_cnt, object_ownr_cnt, implementer_nm, implementer_tel, implementer_id, implementer_email,
+        charge_nm, charge_id, charge_email,  frst_comp_amt_sum, secd_comp_amt_sum, implementer_phone, created_time)
+        VALUES
+        <foreach collection="ltisListApiItems" item="item" separator=",">
+            (#{item.judgSeq}, #{item.modDt}, #{item.recepDt}, #{item.lstReptOwnrModDt}, #{item.lstRecmModDt}, #{item.lstReptModDt},
+            #{item.lstOwnrModDt}, #{item.judgDt}, #{item.implementerModDt}, #{item.implementerDt}, #{item.recmreqPrceDt}, #{item.desnIns},
+            #{item.charge}, #{item.address}, #{item.judgDivNm}, #{item.judgDivCd}, #{item.caseTitle}, #{item.implementer},
+            #{item.bizOprtPrce}, #{item.caseNo}, #{item.befCaseJudgSeq}, #{item.statCd}, #{item.useYn}, #{item.statNm},
+            #{item.dessionCorp}, #{item.corpNm}, #{item.implementerBizNm}, #{item.businessType}, #{item.landCnt}, #{item.landOwnrCnt},
+            #{item.objectCnt}, #{item.objectOwnrCnt},#{item.implementerNm}, #{item.implementerTel}, #{item.implementerId}, #{item.implementerEmail},
+            #{item.chargeNm}, #{item.chargeId}, #{item.chargeEmail}, #{item.frstCompAmtSum}, #{item.secdCompAmtSum}, #{item.implementerPhone}, NOW())
+        </foreach>
+    </insert>
+    <select id="getLtisListTmpJudgSeq" resultType="java.lang.Long">
+        SELECT ltis_tmp.judg_seq
+        FROM ltis_tmp
+                 LEFT OUTER JOIN ltis_status
+                                 ON ltis_tmp.judg_seq = ltis_status.judg_seq
+        WHERE ltis_status.judg_seq IS NULL
+           OR ltis_tmp.mod_dt > ltis_status.ltis_mod_dt
+    </select>
+    <update id="updateLtisDetailToTmp" parameterType="java.util.List">
+        UPDATE ltis_tmp
+        SET judg_dt            = #{judgDt},
+            implementer_dt     = #{implementerDt},
+            recmreq_prce_dt    = #{recmreqPrceDt},
+            address            = #{address},
+            stat_cd            = #{statCd},
+            dession_corp       = #{dessionCorp},
+            corp_nm            = #{corpNm},
+            implementer_biz_nm = #{implementerBizNm},
+            business_type      = #{businessType},
+            land_cnt           = #{landCnt},
+            land_ownr_cnt      = #{landOwnrCnt},
+            object_cnt         = #{objectCnt},
+            object_ownr_cnt    = #{objectOwnrCnt},
+            implementer_nm     = #{implementerNm},
+            implementer_tel    = #{implementerTel},
+            implementer_id     = #{implementerId},
+            implementer_email  = #{implementerEmail},
+            charge_nm          = #{chargeNm},
+            charge_id          = #{chargeId},
+            charge_email       = #{chargeEmail},
+            frst_comp_amt_sum  = #{frstCompAmtSum},
+            secd_comp_amt_sum  = #{secdCompAmtSum},
+            implementer_phone  = #{implementerPhone}
+        WHERE judg_seq = #{judgSeq}
+    </update>
+</mapper>

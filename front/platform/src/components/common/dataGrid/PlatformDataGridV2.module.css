@@ -1,0 +1,313 @@
+/* 컨테이너 스타일 */
+.tableContainer {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  min-height: 0; /* flexbox에서 필요한 설정 */
+}
+
+/* 가로 스크롤 숨기고 컬럼 압축 모드 */
+.hideHorizontalScrollbar {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* 가로 스크롤 숨김 모드에서 테이블 래퍼 */
+.hideHorizontalScrollbar .tableWrapper {
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
+  display: block;
+}
+
+/* 가로 스크롤 숨김 모드에서 테이블 */
+.hideHorizontalScrollbar .table {
+  width: 100%;
+  table-layout: fixed; /* 컬럼 너비를 균등 분배 */
+}
+
+/* 가로 스크롤 숨김 모드에서 헤더와 셀 */
+.hideHorizontalScrollbar .th,
+.hideHorizontalScrollbar .td {
+  min-width: 0 !important; /* 최소 너비 제한 해제 */
+  max-width: none !important;
+  width: auto !important;
+  padding: 4px 8px; /* 패딩 축소 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 체크박스 컬럼은 고정 너비 유지 */
+.hideHorizontalScrollbar .th[data-column-id='select'],
+.hideHorizontalScrollbar .td[data-column-id='select'] {
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  padding: 4px;
+}
+
+/* 일반 모드 (스크롤 있음) */
+.tableContainer:not(.hideHorizontalScrollbar) {
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.tableContainer:not(.hideHorizontalScrollbar) .tableWrapper {
+  width: 100%;
+  min-width: max-content; /* 컨텐츠에 맞춰 확장 */
+  display: inline-block;
+}
+
+.tableContainer:not(.hideHorizontalScrollbar) .table {
+  width: 100%;
+  min-width: 100%;
+  table-layout: auto; /* 컬럼 너비 자동 조정 */
+}
+
+/* 테이블 기본 스타일 */
+.table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* 헤더 스타일 - 스크롤 시 상단 고정 */
+.thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--table-header-bg);
+}
+
+.th {
+  padding: 8px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--table-header-border);
+  color: var(--table-header-text);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.025em;
+  height: 36px;
+  /*min-width: 100px;*/
+  white-space: nowrap;
+  position: relative;
+}
+
+.th:not(:last-child) {
+  border-right: 1px solid var(--table-border-light);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  width: 100%;
+  height: 100%;
+}
+
+.sortableHeader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+  width: 100%;
+  height: 100%;
+}
+
+.sortableHeader:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.sortIcon {
+  margin-left: 4px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* 가로 스크롤 숨김 모드에서 정렬 아이콘 처리 */
+.hideHorizontalScrollbar .sortIcon {
+  margin-left: 2px;
+}
+
+/* 바디 스타일 */
+.tbody {
+  background-color: #ffffff;
+}
+
+.tr {
+  background-color: var(--table-cell-bg);
+  border-bottom: 1px solid var(--table-border-light);
+  transition: all 0.2s ease-in-out;
+}
+
+.tr.evenRow {
+  background-color: var(--table-cell-bg-even);
+}
+
+.tr:hover {
+  background-color: var(--table-cell-bg-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px -2px rgba(6, 99, 178, 0.15);
+}
+
+.tr.selectedRow {
+  background-color: var(--table-cell-bg-selected);
+  border-left: 4px solid var(--primary-dark);
+}
+
+.tr:last-child {
+  border-bottom: none;
+}
+
+.clickableRow {
+  cursor: pointer;
+}
+
+.clickedRow {
+  background-color: var(--table-cell-bg-clicked);
+  border-left: 4px solid var(--primary-main);
+  box-shadow: 0 2px 4px -1px rgba(39, 75, 169, 0.2);
+}
+
+/* 셀 스타일 */
+.td {
+  padding: 8px 12px;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--table-cell-text);
+  border-right: 1px solid var(--table-border-light);
+  height: 38px;
+  /*min-width: 100px;*/
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.td:last-child {
+  border-right: none;
+}
+
+.td:focus {
+  outline: 2px solid var(--primary-light);
+  outline-offset: -2px;
+}
+
+.clickableCell {
+  cursor: pointer;
+  color: var(--primary-light);
+  text-decoration: underline;
+}
+
+.clickableCell:hover {
+  color: var(--primary-main);
+}
+
+/* 체크박스 스타일 */
+.checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary-light);
+}
+
+/* 로딩 스타일 */
+.loadingCell {
+  padding: 0;
+  height: 400px;
+}
+
+.loadingOverlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f4f6;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* No Data 스타일 */
+.noDataCell {
+  padding: 0;
+  height: 400px;
+}
+
+/* 스크롤바 스타일 */
+.tableContainer::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.tableContainer::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 5px;
+}
+
+.tableContainer::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 5px;
+  border: 2px solid #f3f4f6;
+}
+
+.tableContainer::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.tableContainer::-webkit-scrollbar-corner {
+  background: #f3f4f6;
+}
+
+/* 툴팁 (긴 텍스트용) - 옵션 */
+.hideHorizontalScrollbar .td[title] {
+  position: relative;
+}
+
+.hideHorizontalScrollbar .td:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  color: white;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  border-radius: 4px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* 반응형 - 작은 화면에서 더 압축 */
+@media (max-width: 768px) {
+  .hideHorizontalScrollbar .th,
+  .hideHorizontalScrollbar .td {
+    padding: 2px 4px;
+    font-size: 0.75rem;
+  }
+
+  .hideHorizontalScrollbar .checkbox {
+    width: 14px;
+    height: 14px;
+  }
+}

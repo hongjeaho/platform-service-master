@@ -1,0 +1,109 @@
+/**
+ * ConclusionReferenceDetail 컴포넌트 스타일
+ * 디자인 토큰 기반 CSS Module
+ */
+
+/* 섹션 헤더 */
+.sectionHeader {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--neutral-900);
+  margin-bottom: var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* 헤더 인디케이터 바 */
+.headerIndicator {
+  width: 0.25rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  margin-right: var(--spacing-sm);
+}
+
+.headerIndicatorEmerald {
+  background-color: #10b981; /* emerald-500 */
+}
+
+.headerIndicatorTeal {
+  background-color: #14b8a6; /* teal-500 */
+}
+
+/* 기본 정보 섹션 */
+.basicInfoSection {
+  flex-shrink: 0;
+}
+
+/* 그리드 레이아웃 */
+.gridLayout {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--spacing-xl);
+}
+
+.gridLayoutMd {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-xl);
+}
+
+/* 필드 그룹 */
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* 필드 라벨 */
+.fieldLabel {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--neutral-700);
+}
+
+/* 필드 값 컨테이너 */
+.fieldValue {
+  background-color: var(--background-secondary);
+  border: 1px solid var(--neutral-200);
+  border-radius: 0.5rem;
+  padding: var(--spacing-sm);
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+}
+
+/* 필드 텍스트 */
+.fieldText {
+  color: var(--neutral-900);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/* 의견 카드 섹션 */
+.opinionCardSection {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 의견 내용 박스 */
+.opinionContent {
+  background-color: var(--background-secondary);
+  border: 1px solid var(--neutral-200);
+  border-radius: 0.5rem;
+  padding: var(--spacing-lg);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* 의견 텍스트 */
+.opinionText {
+  color: var(--neutral-800);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  white-space: pre-wrap;
+}

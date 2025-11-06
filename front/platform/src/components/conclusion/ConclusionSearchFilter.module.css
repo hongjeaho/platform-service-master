@@ -1,0 +1,58 @@
+/**
+ * ConclusionSearchFilter 컴포넌트 스타일
+ * 디자인 토큰 기반 CSS Module
+ */
+
+/* 메인 컨테이너 */
+.container {
+  width: 100%;
+  margin: 0 auto;
+  padding-bottom: var(--spacing-xl);
+}
+
+/* 폼 카드 */
+.formCard {
+  background-color: white;
+  border: 1px solid var(--neutral-200);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* 폼 내부 패딩 */
+.formContent {
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+/* 필드 행 */
+.fieldRow {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+/* 라벨 */
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--neutral-700);
+  width: 10rem;
+  flex-shrink: 0;
+}
+
+/* 체크박스 컨테이너 */
+.checkboxContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+}
+
+/* 버튼 영역 */
+.buttonArea {
+  display: flex;
+  gap: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  justify-content: center;
+}

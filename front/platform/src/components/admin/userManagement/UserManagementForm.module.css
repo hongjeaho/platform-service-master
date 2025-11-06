@@ -1,0 +1,43 @@
+/* 회원 관리 폼 전용 스타일 */
+
+/* 아이디 입력 컨테이너 */
+.idInputContainer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+/* 성공 메시지 컨테이너 */
+.successMessage {
+  margin-top: var(--spacing-sm);
+}
+
+.successMessageText {
+  font-size: var(--font-size-sm);
+  color: var(--color-semantic-success);
+}
+
+/* 안내 텍스트 */
+.helperText {
+  font-size: var(--font-size-xs);
+  color: var(--color-neutral-500);
+}
+
+/* 권한 선택 컨테이너 */
+.roleContainer {
+  min-height: 60px;
+}
+
+.roleHelperText {
+  font-size: var(--font-size-xs);
+  color: var(--color-neutral-500);
+  margin-left: var(--spacing-sm);
+}
+
+/* 버튼 컨테이너 */
+.buttonContainer {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-2xl);
+}

@@ -1,0 +1,9 @@
+/* 구별 담당자 폼 전용 스타일 */
+
+/* 버튼 컨테이너 */
+.buttonContainer {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-2xl);
+}

@@ -1,0 +1,54 @@
+/* 위원회 명단 관리 페이지 전용 스타일 */
+
+/* 메인 컨테이너 */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--spacing-2xl) var(--spacing-lg);
+}
+
+/* 카드 컨테이너 */
+.card {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.1),
+    0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  padding: var(--spacing-xl);
+}
+
+/* 헤더 영역 */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+/* 헤더 정보 영역 */
+.headerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.headerTitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-heading, 'Nanum Gothic', sans-serif);
+  color: var(--table-cell-text);
+  margin: 0;
+}
+
+.headerDescription {
+  font-size: var(--font-size-sm);
+  color: var(--color-neutral-600);
+  margin: 0;
+}
+
+/* 액션 버튼 컨테이너 */
+.actionButtons {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: center;
+}

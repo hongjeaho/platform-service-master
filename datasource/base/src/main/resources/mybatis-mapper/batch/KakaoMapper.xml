@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.platform.datasource.base.mapper.batch.kakaoApi.KakaoMapper">
+    <update id="updateOfficialGeoPoint" parameterType="org.jooq.generated.tables.pojos.KapaOfficialPriceEntity">
+        UPDATE kapa_official_price
+        SET wgs84_x = #{wgs84X, jdbcType=VARCHAR},
+            wgs84_y = #{wgs84Y, jdbcType=VARCHAR}
+        WHERE c_year = #{cYear, jdbcType=VARCHAR}
+          AND pnu = #{pnu, jdbcType=VARCHAR}
+          AND use_yn = 'Y'
+    </update>
+    <update id="updateStandardGeoPoint" parameterType="org.jooq.generated.tables.pojos.KapaStandardPriceEntity">
+        UPDATE kapa_standard_price
+        SET wgs84_x = #{wgs84X, jdbcType=VARCHAR},
+            wgs84_y = #{wgs84Y, jdbcType=VARCHAR}
+        WHERE c_year = #{cYear, jdbcType=VARCHAR}
+          AND s_pnu = #{sPnu, jdbcType=VARCHAR}
+          AND use_yn = 'Y'
+    </update>
+    <select id="getOfficialGeoPointsNeedUpdate"
+            resultType="org.jooq.generated.tables.pojos.KapaOfficialPriceEntity">
+        SELECT c_year
+             , pnu
+             , tm_x
+             , tm_y
+        FROM kapa_official_price
+        WHERE (wgs84_x IS NULL
+            OR wgs84_x = ''
+            OR wgs84_y IS NULL
+            OR wgs84_y = '')
+          AND (tm_x != 'null'
+            AND tm_y != 'null')
+    </select>
+    <select id="getStandardGeoPointsNeedUpdate"
+            resultType="org.jooq.generated.tables.pojos.KapaStandardPriceEntity">
+        SELECT c_year
+             , s_pnu
+             , tm_x
+             , tm_y
+        FROM kapa_standard_price
+        WHERE (wgs84_x IS NULL
+            OR wgs84_x = ''
+            OR wgs84_y IS NULL
+            OR wgs84_y = '')
+          AND (tm_x != 'null'
+            AND tm_y != 'null')
+    </select>
+</mapper>

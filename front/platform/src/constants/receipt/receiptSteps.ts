@@ -1,0 +1,17 @@
+/**
+ * 접수 단계 코드 상수
+ */
+export const RECEIPT_STEP_CODES = {
+  BUSINESS_OVERVIEW: 'CR001001',
+  TOTAL_QUANTITY: 'CR001002',
+  PREVIOUS_APPRAISAL: 'CR001003',
+  ATTACHMENT: 'CR001004',
+  NOTICE_RESULT: 'CR001005',
+  OPINION: 'CR001006',
+  COMPLETED: 'CR001007',
+} as const
+
+/**
+ * 총 단계 수
+ */
+export const TOTAL_STEPS = 6

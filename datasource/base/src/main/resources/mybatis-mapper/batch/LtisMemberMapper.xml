@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.platform.datasource.base.mapper.batch.ltisMemberApi.LtisMemberMapper">
+  <select id="findImplementorInfoIntoUserTable" resultType="userEntity">
+    SELECT DISTINCT lc.implementer_id    AS userId,
+                    lc.implementer_nm    AS userName,
+                    NULL                 AS userPassword,
+                    lc.implementer_email AS userEmail,
+                    1                    AS createdBy,
+                    #{createdDate}       AS createdTime
+    FROM ltis_charge lc
+           LEFT JOIN user u ON lc.implementer_id = u.user_id
+    WHERE u.seq IS NULL
+      and lc.implementer_id IS NOT NULL
+    ORDER BY lc.judg_seq, lc.implementer_id
+      LIMIT #{_skiprows}, #{_pagesize}
+  </select>
+
+  <select id="findDecisionUserInfoIntoUserTable" resultType="userEntity">
+    SELECT DISTINCT lc.charge_id    AS userId,
+                    lc.charge_nm    AS userName,
+                    NULL            AS userPassword,
+                    lc.charge_email AS userEmail,
+                    1               AS createdBy,
+                    #{createdDate}  AS createdTime
+    FROM ltis_charge lc
+           LEFT JOIN user u ON lc.charge_id = u.user_id
+    WHERE u.seq IS NULL
+    ORDER BY lc.judg_seq, lc.charge_id
+      LIMIT #{_skiprows}, #{_pagesize}
+  </select>
+
+  <select id="findRoleSeqForRegisteringImplementer" resultType="int">
+    select seq
+    from user_role
+    where user_role_name = 'IMPLEMENTER'
+  </select>
+
+  <insert id="insertLtisChargeInfoIntoUser" useGeneratedKeys="true" keyProperty="userSeq"
+    keyColumn="seq">
+    INSERT INTO user (user_email,
+                      user_name,
+                      user_id,
+                      user_password,
+                      created_by,
+                      created_time)
+    VALUES (#{userEmail},
+            #{userName},
+            #{userId},
+            #{userPassword},
+            #{createdBy},
+            #{createdTime})
+  </insert>
+
+  <insert id="insertLtisChargeRoleIntoUserRole">
+    INSERT INTO user_role_mapping (user_seq,
+                                   role_seq,
+                                   created_by,
+                                   created_time)
+    VALUES (#{userSeq},
+            #{roleSeq},
+            #{roleMappingCreatedBy},
+            #{roleMappingCreatedTime})
+  </insert>
+</mapper>

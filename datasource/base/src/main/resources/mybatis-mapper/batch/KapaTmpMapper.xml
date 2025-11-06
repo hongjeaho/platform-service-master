@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.platform.datasource.base.mapper.batch.kapaApi.KapaTmpMapper">
+    <insert id="insertOfficialPriceTemp">
+<![CDATA[
+        INSERT INTO kapa_official_price_tmp(c_year, pnu)
+        SELECT DISTINCT c_year, pnu
+        FROM (SELECT YEAR (NOW()) AS c_year, A.pnu
+              FROM ltis_pnu A
+              WHERE EXISTS (
+                  SELECT 1
+                  FROM kapa_official_price t1
+                  LEFT JOIN kapa_official_price t2
+                  ON t1.PNU = t2.PNU AND t2.c_year = YEAR(NOW())
+                  WHERE t1.c_year = YEAR(NOW()) - 1 AND t1.pnu = a.pnu
+                  AND t2.c_year IS NULL
+                  AND t1.use_yn = 'Y'
+                  )
+              UNION ALL
+              SELECT RY.YEAR AS c_year, A.pnu
+              FROM ltis_pnu A
+                  CROSS JOIN (
+                  WITH RECURSIVE years AS (
+                  SELECT 2018 AS year
+                  UNION ALL
+                  SELECT year + 1 FROM years WHERE year < YEAR (NOW())
+                  )
+                  SELECT year FROM years
+                  ) RY
+              WHERE NOT EXISTS (
+                  SELECT 1
+                  FROM kapa_official_price LPA
+                  WHERE LPA.pnu = A.pnu
+                  AND LPA.c_year = RY.year
+                  )) tmp
+        ]]>
+    </insert>
+    <delete id="deleteOfficialPriceTemp">
+        DELETE
+        FROM store.kapa_official_price_tmp
+        WHERE c_year IS NOT NULL
+    </delete>
+    <delete id="deleteStandardPriceTemp">
+        DELETE
+        FROM kapa_standard_price_tmp
+        WHERE c_year IS NOT NULL
+    </delete>
+    <insert id="insertStandardPriceTemp">
+        INSERT INTO kapa_standard_price_tmp(c_year, s_reg, standard_seq_no)
+        SELECT DISTINCT c_year, reg, standard_seq_no
+        FROM (
+                 SELECT A.c_year, A.reg, A.standard_seq_no
+                 FROM kapa_official_price A
+                 WHERE NOT EXISTS (
+                     SELECT 1
+                     FROM kapa_standard_price B
+                     WHERE B.s_reg = A.reg AND B.seq_no = A.standard_seq_no AND B.c_year = A.c_year
+                     )
+                 AND A.reg IS NOT NULL AND A.standard_seq_no IS NOT NULL AND A.c_year IS NOT NULL
+                 AND A.use_yn = 'Y'
+             ) tmp
+    </insert>
+    <insert id="insertEmptyOfficialRequest">
+        INSERT INTO kapa_official_price (c_year, pnu, use_yn)
+        SELECT kopt.c_year, kopt.pnu, 'N'
+        FROM kapa_official_price_tmp kopt
+                 LEFT JOIN kapa_official_price kop
+                           ON kop.c_year = kopt.c_year
+                               AND kop.pnu = kopt.pnu
+        WHERE kopt.c_year != YEAR(NOW())
+          AND kop.c_year IS NULL
+    </insert>
+</mapper>

@@ -1,0 +1,26 @@
+/**
+ * ConclusionProgressFormSection 컴포넌트 스타일
+ * 디자인 토큰 기반 CSS Module
+ */
+
+/* 메인 컨테이너 */
+.container {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding-top: var(--spacing-xl);
+}
+
+/* 읽기 전용 텍스트 박스 */
+.readOnlyTextBox {
+  border: 1px solid var(--neutral-300);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+  height: 12.5rem;
+  padding: var(--spacing-md);
+  white-space: pre-wrap;
+}
+
+.readOnlyTextBox:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
