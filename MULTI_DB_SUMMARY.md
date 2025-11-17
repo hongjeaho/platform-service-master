@@ -2,286 +2,304 @@
 
 ## 현재 상태 (2025-11-16)
 
-### 데이터소스 설정 구조
+### 아키텍처 철학
+
+**각 데이터베이스 = 독립적인 datasource 모듈**
+
 ```
-✅ 잘 설계됨
-├─ PlatFormDatabaseSource: API용 DataSource 관리
-├─ BatchConfig: 배치 전용 DataSource 관리
-├─ 독립적인 TransactionManager
-└─ 자동 설정 제외로 수동 구성 가능
-```
-
-**설정 파일 위치**:
-- 플랫폼: `/datasource/base/src/main/resources/application-datasource-base*.yml`
-  - `platform.domain.datasource.*` (HikariCP 연결 풀)
-- 배치: `/batch/platform/src/main/resources/application*.yml`
-  - `batch.domain.datasource.*` (별도 DB)
-
-**현황**: 이미 API와 배치가 다른 DB 사용 중
-
----
-
-## jOOQ 설정
-
-### 코드 생성
-```gradle
-// datasource/base/build.gradle
-jooq {
-    database {
-        name = "org.jooq.meta.mysql.MySQLDatabase"  // ❌ MySQL 전용
-        inputSchema = "store"
-    }
-}
+datasource/
+├── base/          # MySQL 전용 모듈 (현재 유일)
+│   ├── flyway/    # MySQL 마이그레이션
+│   ├── jOOQ       # MySQL 코드 생성
+│   ├── repository/# MySQL 리포지토리
+│   ├── mapper/    # MySQL 매퍼
+│   └── config/    # MySQL TransactionManager
+│
+├── postgres/      # PostgreSQL 추가 시 (미래)
+│   ├── flyway/    # PostgreSQL 마이그레이션
+│   ├── jOOQ       # PostgreSQL 코드 생성
+│   ├── repository/# PostgreSQL 리포지토리
+│   ├── mapper/    # PostgreSQL 매퍼
+│   └── config/    # PostgreSQL TransactionManager
+│
+└── mongodb/       # MongoDB 추가 시 (미래)
+    └── ...        # 동일한 독립 구조
 ```
 
-**제약사항**:
-- ❌ MySQL 방언만 지원
-- ❌ 단일 스키마만 생성
-- ✅ 환경변수로 DB_URL 변경 가능 (빌드 시)
+### 현재 평가
 
-**생성 위치**: `datasource/base/src/generated/` (자동 생성, .gitignore)
-
----
-
-## MyBatis 설정
-
-### SqlSessionFactory
-```java
-@MapperScan(basePackages = {"com.platform.datasource.base.mapper"})
-public class MybatisConfig {
-    @Bean
-    public SqlSessionFactory platformDomainSqlSessionFactory(...) 
 ```
-
-**특징**:
-- ✅ 다중 SqlSessionFactory 추가 가능
-- ✅ 7개 Mapper 파일 (주로 배치 작업)
-- ⚠️ 현재는 단일 팩토리만 사용
-
-**위치**: `/datasource/base/src/main/resources/mybatis-mapper/`
-
----
-
-## 트랜잭션 관리
-
-### 커스텀 어노테이션
-```java
-@PlatFormTransactional                  // 읽기/쓰기
-@PlatFormTransactional(readOnly=true)   // 읽기 전용
+✅ 매우 우수 - 모듈화된 설계
+├─ datasource/base: MySQL 전용 독립 모듈
+├─ 각 모듈마다 독립적인 jOOQ, Flyway, Repository, TransactionManager
+├─ api/batch 모듈에서 필요한 datasource만 선택적으로 의존
+└─ 기존 코드 수정 없이 새 DB 추가 가능
 ```
-
-**특징**:
-- ✅ Repository 분리 (ReceiptRepository vs ReceiptReadRepository)
-- ✅ 명시적 TransactionManager 지정
-- ⚠️ 읽기도 동일 DataSource 사용 (복제본 미지원)
-
----
-
-## 멀티 DB 지원 현황
-
-| 기능 | 상태 | 난이도 |
-|------|------|-------|
-| **여러 DataSource** | ✅ 가능 | ⭐ 쉬움 |
-| **읽기 복제본** | ❌ 미구현 | ⭐⭐ 쉬움 |
-| **다중 DB 벤더** | ❌ MySQL만 | ⭐⭐⭐ 중간 |
-| **샤딩** | ❌ 없음 | ⭐⭐⭐⭐ 어려움 |
-| **분산 트랜잭션** | ❌ 없음 | ⭐⭐⭐ 중간 |
 
 ---
 
 ## 주요 파일 위치
 
-### DataSource 설정
+### datasource/base 모듈 (MySQL)
+
 ```
 datasource/base/
-├── src/main/resources/
-│   ├── application-datasource-base.yml          # 플랫폼 설정
-│   └── application-datasource-base-dev.yml      # 개발 환경
-└── src/main/java/.../config/
-    ├── database/PlatFormDatabaseSource.java      # 플랫폼 DataSource
-    ├── database/PlatFormTransactional.java       # 커스텀 어노테이션
-    ├── JooqConfig.java                          # jOOQ 설정
-    └── MybatisConfig.java                       # MyBatis 설정
-
-batch/platform/
-├── src/main/resources/
-│   └── application.yml                          # 배치 설정
-└── src/main/java/.../config/
-    └── BatchConfig.java                         # 배치 DataSource
+├── build.gradle                                      # jOOQ, Flyway 플러그인
+├── flyway/V*.sql                                     # MySQL 마이그레이션 (32개)
+├── src/main/
+│   ├── java/.../config/
+│   │   ├── database/PlatFormDatabaseSource.java      # MySQL DataSource
+│   │   ├── database/PlatFormTransactional.java       # MySQL 트랜잭션 어노테이션
+│   │   ├── JooqConfig.java                          # MySQL jOOQ 설정
+│   │   └── MybatisConfig.java                       # MySQL MyBatis 설정
+│   ├── java/.../repository/                         # MySQL 리포지토리
+│   │   ├── receipt/ReceiptRepository.java
+│   │   ├── receipt/ReceiptReadRepository.java
+│   │   └── ... (15개 도메인)
+│   └── resources/
+│       ├── application-datasource-base.yml          # MySQL 설정
+│       └── mybatis-mapper/**/*.xml                  # MyBatis XML
+└── src/generated/                                    # jOOQ 생성 코드 (.gitignore)
 ```
 
-### 저장소 (Repository)
-```
-datasource/base/src/main/java/.../repository/
-├── receipt/
-│   ├── ReceiptRepository.java          # 쓰기 (INSERT/UPDATE/DELETE)
-│   └── ReceiptReadRepository.java      # 읽기 (SELECT)
-├── board/
-├── conclusion/
-└── ... (15개 도메인)
+### api/platform 모듈에서의 사용
 
-mapper/
-├── user/UserMapper.java
-└── batch/
-    ├── KapaDataMapper.java
-    ├── LtisDataMapper.java
-    └── ...
+```gradle
+// api/platform/build.gradle
+dependencies {
+    implementation(project(":datasource-base"))      // MySQL 사용
+    // implementation(project(":datasource-postgres"))  // PostgreSQL 추가 시
+    // implementation(project(":datasource-mongodb"))   // MongoDB 추가 시
+}
+```
+
+```java
+// api/platform/src/.../controller/ReceiptController.java
+@RestController
+@RequiredArgsConstructor
+public class ReceiptController {
+    // MySQL 리포지토리 (datasource/base)
+    private final ReceiptRepository receiptRepository;
+
+    // PostgreSQL 리포지토리 (datasource/postgres) - 미래
+    // private final PostgresReceiptRepository postgresReceiptRepository;
+}
 ```
 
 ---
 
-## 확장 가능성 분석
+## 멀티 DB 지원 현황
 
-### 1단계: 읽기 복제본 추가 ⭐⭐ (가장 쉬움)
+| 기능 | 상태 | 확장 방법 |
+|------|------|---------|
+| **여러 DB 벤더** | ✅ 가능 | datasource/{db-name} 모듈 추가 |
+| **모듈별 독립 jOOQ** | ✅ 가능 | 각 모듈의 build.gradle 설정 |
+| **모듈별 독립 Flyway** | ✅ 가능 | 각 모듈의 flyway/ 디렉토리 |
+| **모듈별 독립 Repository** | ✅ 가능 | 각 모듈의 repository/ 패키지 |
+| **모듈별 독립 TransactionManager** | ✅ 가능 | 각 모듈의 Config 클래스 |
+| **읽기 복제본** | ❌ 미구현 | 모듈 내 RoutingDataSource 추가 |
+| **샤딩** | ❌ 미구현 | 별도 샤딩 로직 필요 |
 
-**필요한 작업**:
-1. `ReadWriteRoutingDataSource.java` 구현 (50줄)
-2. 설정 파일에 master/replica 추가 (50줄)
-3. `PlatFormDatabaseSource` 수정 (30줄)
+---
 
-**기존 코드 수정**: ❌ 거의 없음
+## 확장 시나리오
+
+### Scenario 1: PostgreSQL 모듈 추가 ⭐⭐ (낮음)
+
+**작업 내용**:
+1. `datasource/postgres` 디렉토리 생성
+2. PostgreSQL 전용 build.gradle 작성 (jOOQ, Flyway)
+3. PostgreSQL Config 클래스 작성
+4. PostgreSQL Repository 작성
+5. settings.gradle에 모듈 등록
+6. api/platform에서 의존성 추가
+
+**기존 코드 수정**: ❌ 없음 (완전히 독립)
+**예상 시간**: 1-2일
+**복잡도**: ⭐⭐ (낮음)
+
+```gradle
+// settings.gradle에 추가
+include 'datasource:postgres'
+
+// api/platform/build.gradle에 추가
+implementation(project(":datasource-postgres"))
+```
+
+---
+
+### Scenario 2: 읽기 복제본 추가 (모듈 내부) ⭐⭐ (낮음)
+
+**작업 내용**:
+1. datasource/base 내에 ReadWriteRoutingDataSource 구현
+2. application-datasource-base.yml에 master/replica 설정 추가
+3. PlatFormDatabaseSource 수정
+
+**기존 Repository 코드 수정**: ❌ 없음 (자동 라우팅)
 **예상 시간**: 2-3일
+**성능 개선**: +20~40% 읽기 처리량
+**복잡도**: ⭐⭐ (낮음)
 
 ```yaml
+# datasource/base/src/main/resources/application-datasource-base.yml
 platform.domain.datasource:
   master:
-    jdbcUrl: jdbc:mysql://master-db:3306/store
+    jdbcUrl: jdbc:mysql://db-master:3306/store
   replica:
-    jdbcUrl: jdbc:mysql://read-replica:3306/store
+    jdbcUrl: jdbc:mysql://db-replica:3306/store
 ```
-
-**효과**: 읽기 처리량 20~40% 향상
 
 ---
 
-### 2단계: PostgreSQL 지원 추가 ⭐⭐⭐ (중간)
+### Scenario 3: MongoDB 모듈 추가 ⭐⭐ (낮음)
 
-**필요한 작업**:
-1. 새로운 모듈 생성: `datasource/postgres`
-2. PostgreSQL jOOQ 설정
-3. `PostgresDatabaseSource` 구현
-4. 새로운 Repository (이미 있는 구조와 동일)
+**작업 내용**:
+1. `datasource/mongodb` 디렉토리 생성
+2. Spring Data MongoDB 설정
+3. MongoDB Repository 작성 (jOOQ 미사용)
 
-**기존 코드 수정**: ❌ 없음
-**예상 시간**: 5-7일
-
-```java
-// 완전히 별도의 DataSource + DSLContext
-@Bean("postgresDslContext")
-public DSLContext postgresDslContext(...) {
-    // SQLDialect.POSTGRES 사용
-}
-```
-
-**주의**: 각 DB별로 jOOQ 코드 재생성 필요
-
----
-
-### 3단계: 샤딩 구현 ⭐⭐⭐⭐ (어려움)
-
-**필요한 작업**:
-1. `ShardingDataSource` 구현
-2. `ShardingContext` (ThreadLocal 기반)
-3. `@Sharded` 어노테이션
-4. AOP 인터셉터
-
-**기존 코드 수정**: ⚠️ 메서드에 `@Sharded` 추가
-**예상 시간**: 7-10일
+**기존 MySQL 코드 영향**: ❌ 없음
+**예상 시간**: 1-2일
+**복잡도**: ⭐⭐ (낮음)
 
 ```java
-@Sharded(paramIndex = 0)  // userId 기반 샤딩
-public ReceiptDto getReceipt(int userId, long receiptId) {
-    return receiptRepository.findById(receiptId);
+// datasource/mongodb/src/.../repository/LogRepository.java
+public interface LogRepository extends MongoRepository<Log, String> {
+    List<Log> findByUserIdAndCreatedAtBetween(...);
 }
 ```
-
-**주의**: 크로스 샤드 조인 불가능, 글로벌 트랜잭션 복잡
 
 ---
 
 ## 즉시 개선 사항 (1주 이내)
 
 ### 1. 배치 매퍼 분리
-현재 배치 관련 MyBatis Mapper가 platform datasource에 혼재
 
+**현재 문제**:
 ```
 datasource/base/src/main/resources/mybatis-mapper/
-├── batch/             # ← batch 모듈로 이동
-│   ├── KapaDataMapper.xml
-│   ├── LtisDataMapper.xml
-│   └── ...
-└── user/             # ← 플랫폼 것만 남기기
+└── batch/             ← 배치용인데 datasource/base에 혼재
+    ├── KapaDataMapper.xml
+    └── LtisDataMapper.xml
 ```
 
-**효과**: 배치 전용 DataSource 명시적 사용
-
-### 2. ReadRepository 라우팅 준비
-이미 `readOnly=true` 어노테이션이 있으므로, 향후 RoutingDataSource 추가 시 자동으로 동작
-
-```java
-@PlatFormTransactional(readOnly = true)  // ← 이미 준비됨
-public class ReceiptReadRepository { ... }
+**개선 방안**:
 ```
+datasource/base에서 batch 매퍼 제거
+→ batch/platform/src/main/resources/mybatis-mapper/로 이동
+```
+
+**효과**: 모듈 경계 명확화, 배치 DB 사용 명시적
 
 ---
 
 ## 성능 예상치
 
-| 확장 시나리오 | 읽기 성능 | 쓰기 성능 | 복잡도 |
-|-------------|----------|----------|--------|
-| 현재 (단일 DB) | 기준 | 기준 | - |
-| + 읽기 복제본 | +20~40% | -0% | 낮음 |
-| + PostgreSQL | 유사 | 유사 | 중간 |
-| + 샤딩 (3개) | +150~200% | +150~200% | 높음 |
-| + JTA | -20~30% | -20~30% | 중간 |
+| 시나리오 | 읽기 성능 | 쓰기 성능 | 복잡도 |
+|---------|----------|----------|--------|
+| 현재 (datasource/base만) | 기준 | 기준 | - |
+| + 읽기 복제본 (모듈 내) | +20~40% | -0% | ⭐⭐ 낮음 |
+| + PostgreSQL 모듈 | 유사 | 유사 | ⭐⭐ 낮음 |
+| + MongoDB 모듈 | 유사 | 유사 | ⭐⭐ 낮음 |
+| + 샤딩 (3개) | +150~200% | +150~200% | ⭐⭐⭐⭐ 높음 |
 
 ---
 
 ## 권장 로드맵
 
-### Phase 1 (즉시 ~ 1주)
-- [ ] 배치 매퍼 분리
-- [ ] ReadRepository 라우팅 설계
+### Phase 1 (1주 이내) - 즉시
 
-### Phase 2 (1~3개월)  
-- [ ] 읽기 복제본 구현 (RoutingDataSource)
-- [ ] jOOQ 버전 업그레이드 → 다중 스키마 지원
+**Priority 1**: 배치 매퍼 분리
+- [ ] datasource/base의 batch 매퍼 → batch/platform으로 이동
+- 소요 시간: 1일
+- 효과: 모듈 독립성 향상
 
-### Phase 3 (3~6개월)
-- [ ] PostgreSQL 지원 추가
-- [ ] 샤딩 설계/구현 (필요 시)
+**Priority 2**: 읽기 복제본 설계
+- [ ] RoutingDataSource 설계 문서 작성
+- [ ] 성능 테스트 계획 수립
 
-### Phase 4 (6~12개월)
-- [ ] 이벤트 소싱 도입 (분산 환경 최적화)
-- [ ] JTA 분산 트랜잭션 (필수 시만)
+---
+
+### Phase 2 (1개월) - 단기
+
+**Priority 3**: 읽기 복제본 구현 (datasource/base 내부)
+- [ ] ReadWriteRoutingDataSource 구현
+- [ ] master/replica 설정 추가
+- [ ] 성능 테스트
+- 소요 시간: 2-3일
+- 효과: 읽기 처리량 +20~40%
+
+---
+
+### Phase 3 (3개월) - 중기 (필요시)
+
+**Priority 4**: PostgreSQL 모듈 추가
+- [ ] datasource/postgres 모듈 생성
+- [ ] PostgreSQL jOOQ, Flyway 설정
+- [ ] PostgreSQL Repository 작성
+- 소요 시간: 1-2일
+- 효과: 다중 벤더 지원 예시
+
+**Priority 5**: MongoDB 모듈 추가
+- [ ] datasource/mongodb 모듈 생성
+- [ ] Spring Data MongoDB 설정
+- 소요 시간: 1-2일
+- 효과: NoSQL 지원
+
+---
+
+### Phase 4 (6개월+) - 장기 (필요시)
+
+**Priority 6**: 샤딩 메커니즘
+- [ ] ShardingDataSource 설계 및 구현
+- 소요 시간: 7-10일
+- 효과: 대규모 데이터 분산
+
+**Priority 7**: 분산 트랜잭션 (JTA)
+- [ ] Narayana JTA 도입
+- 소요 시간: 3-5일
+- 주의: 성능 오버헤드 20-30%
 
 ---
 
 ## 핵심 결론
 
-✅ **현재 구조는 멀티 DB 확장에 충분히 준비됨 (70%)**
-- DataSource 분리: 이미 구현됨
-- TransactionManager 분리: 이미 구현됨  
-- Repository 패턴: 이미 잘 정립됨
+### ✅ 현재 아키텍처의 강점
 
-⚠️ **부분적으로 구현된 부분**
-- 읽기 복제본 어노테이션은 있지만, 라우팅 로직 없음
-- 배치와 플랫폼 DB가 분리되어 있지만 매퍼는 혼재
+1. **완벽한 모듈 독립성**
+   - 각 datasource 모듈은 완전히 독립적
+   - 새 DB 추가 시 기존 코드 수정 불필요
 
-❌ **구현 필요**
-- 읽기 복제본 자동 라우팅
-- 다중 DB 벤더 지원
-- 샤딩 (대규모 데이터 시)
+2. **확장성 우수**
+   - datasource/{db-name} 패턴으로 무제한 확장 가능
+   - 각 모듈마다 독립적인 jOOQ, Flyway, Repository, TransactionManager
 
-**선순위 1**: 읽기 복제본 추가 (2-3일, 20~40% 성능 향상)
-**선순위 2**: 배치 매퍼 분리 (1-2일, 구조 정리)
+3. **선택적 의존성**
+   - api/batch 모듈에서 필요한 datasource만 선택
+   - 사용하지 않는 DB 의존성 없음
+
+### ⚠️ 개선 필요 사항
+
+1. **배치 매퍼 분리** (1일)
+   - datasource/base의 batch 매퍼 → batch/platform으로 이동
+
+2. **읽기 복제본 구현** (2-3일)
+   - datasource/base 내 RoutingDataSource 추가
+   - 성능 개선 +20~40%
+
+### 🎯 추천 우선순위
+
+**1순위**: 배치 매퍼 분리 (즉시, 1일)
+**2순위**: 읽기 복제본 추가 (단기, 2-3일)
+**3순위**: PostgreSQL 모듈 (필요시, 1-2일)
 
 ---
 
 ## 참고
 
-상세 분석은 `MULTI_DB_ANALYSIS.md` 참고 (900줄)
+상세 분석은 `MULTI_DB_ANALYSIS.md` 참고 (1,000줄)
 
-- Section 6: 확장 시나리오별 구현 방법 및 코드 예제
-- Section 9: 읽기 복제본 단계별 구현 가이드
+- Section 1: datasource/base 모듈 상세 구조
+- Section 7: 확장 시나리오별 구현 코드 예제
+- Section 8: 우선순위별 권고사항
 - Section 10: 성능 고려사항

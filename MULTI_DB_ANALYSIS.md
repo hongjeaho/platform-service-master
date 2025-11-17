@@ -1,41 +1,88 @@
 # 멀티 데이터베이스 확장 유연성 분석 보고서
-**생성일**: 2025-11-16  
+**생성일**: 2025-11-16
 **분석 대상**: Platform Service Master (Spring Boot 3.4.2 기반)
 
 ---
 
 ## Executive Summary
 
-현재 Platform Service는 **단일 MySQL 데이터베이스 구조**로 운영되고 있으며, **멀티 데이터베이스 확장을 위한 기반이 부분적으로 마련**되어 있습니다.
+현재 Platform Service는 **datasource 모듈 추가 방식**으로 멀티 데이터베이스를 지원하도록 설계되어 있습니다. 각 DB마다 독립적인 모듈을 생성하여 확장하는 구조입니다.
 
 **주요 발견**:
-- ✅ 추상화된 DataSource 설정 구조로 여러 데이터소스 지원 가능
+- ✅ **모듈화된 datasource 구조**: 각 DB마다 독립 모듈 추가 가능
 - ✅ 배치 모듈에서 이미 별도 DataSource 사용 중 (배치 전용 DB)
-- ✅ 트랜잭션 관리자 분리로 다중 DB 트랜잭션 처리 가능
+- ✅ 각 모듈마다 독립적인 jOOQ, Flyway, Repository, TransactionManager
+- ✅ api/batch 모듈에서 필요한 datasource 모듈들을 선택적으로 의존
+- ⚠️ 현재는 datasource/base (MySQL) 모듈만 존재
 - ⚠️ 읽기 복제본(Read Replica) 라우팅 미구현
-- ⚠️ 다중 DB 벤더(Oracle, PostgreSQL 등) 지원 미미
-- ⚠️ 샤딩 메커니즘 없음
+
+**아키텍처 철학**:
+```
+각 데이터베이스 = 독립적인 datasource 모듈
+
+datasource/
+├── base/          # MySQL 전용 모듈
+│   ├── flyway/    # MySQL 마이그레이션
+│   ├── jOOQ       # MySQL 코드 생성
+│   ├── repository/# MySQL 리포지토리
+│   └── mapper/    # MySQL 매퍼
+│
+├── postgres/      # PostgreSQL 추가 시 (미래)
+│   ├── flyway/    # PostgreSQL 마이그레이션
+│   ├── jOOQ       # PostgreSQL 코드 생성
+│   ├── repository/# PostgreSQL 리포지토리
+│   └── mapper/    # PostgreSQL 매퍼
+│
+└── oracle/        # Oracle 추가 시 (미래)
+    └── ...        # 동일 구조
+```
 
 ---
 
-## 1. 현재 데이터소스 설정 구조
+## 1. 현재 데이터소스 모듈 구조
 
-### 1.1 설정 파일 분석
+### 1.1 datasource/base 모듈 (MySQL 전용)
 
-#### **API 모듈 (api/platform)**
-```yaml
-# application.yml
-spring:
-  profiles:
-    active: local
-    group:
-      local: base, core, datasource-base, web-base
-      dev: base, core, datasource-base, web-base, datasource-base-dev
+#### 모듈 구조
+```
+datasource/base/
+├── build.gradle                    # jOOQ, Flyway 플러그인 설정
+├── flyway/                         # MySQL 마이그레이션 스크립트
+│   ├── V20250204000000__init.sql
+│   ├── V20250205000000__add_users.sql
+│   └── ... (32개 마이그레이션)
+│
+├── src/
+│   ├── main/
+│   │   ├── java/com/platform/datasource/base/
+│   │   │   ├── config/
+│   │   │   │   ├── database/PlatFormDatabaseSource.java    # DataSource 설정
+│   │   │   │   ├── database/PlatFormTransactional.java     # 트랜잭션 어노테이션
+│   │   │   │   ├── JooqConfig.java                        # jOOQ 설정
+│   │   │   │   └── MybatisConfig.java                     # MyBatis 설정
+│   │   │   ├── repository/                                # jOOQ 리포지토리
+│   │   │   │   ├── receipt/ReceiptRepository.java
+│   │   │   │   ├── receipt/ReceiptReadRepository.java
+│   │   │   │   ├── board/BoardRepository.java
+│   │   │   │   └── ... (15개 도메인)
+│   │   │   └── mapper/                                    # MyBatis 인터페이스
+│   │   │       ├── user/UserMapper.java
+│   │   │       └── batch/KapaDataMapper.java
+│   │   └── resources/
+│   │       ├── application-datasource-base.yml           # 기본 설정
+│   │       ├── application-datasource-base-dev.yml       # 개발 환경
+│   │       └── mybatis-mapper/                           # MyBatis XML
+│   │           ├── user/UserMapper.xml
+│   │           └── batch/*.xml
+│   └── generated/                                         # jOOQ 생성 코드 (.gitignore)
+│       └── org/jooq/generated/
+│           ├── tables/
+│           ├── records/
+│           └── daos/
 ```
 
-#### **Datasource Base 모듈 (datasource/base)**
+#### 설정 파일 (application-datasource-base.yml)
 ```yaml
-# application-datasource-base.yml (개발 환경)
 platform:
   domain:
     datasource:
@@ -50,39 +97,17 @@ platform:
       maxLifetime: 1800000
 ```
 
-#### **배치 모듈 (batch/platform)**
-```yaml
-# application.yml
-batch:
-  domain:
-    datasource:
-      poolName: ltis-batch-domain-cp
-      type: com.zaxxer.hikari.HikariDataSource
-      driverClassName: com.mysql.cj.jdbc.Driver
-      jdbcUrl: "jdbc:mysql://localhost:3306/batch?..."
-      username: root
-      password: root
-      maximumPoolSize: 5
-      connectionTimeout: 60000
-```
-
-**분석**:
-- 플랫폼용과 배치용 DB가 **별도로 분리**됨
-- 커스텀 프로퍼티 네이밍: `platform.domain.datasource`, `batch.domain.datasource`
-- 환경별 설정 가능 (local vs dev)
-
-### 1.2 DataSource 빈 구성
-
-#### **PlatFormDatabaseSource.java**
+#### DataSource 빈 구성 (PlatFormDatabaseSource.java)
 ```java
+@Configuration
 @EnableAutoConfiguration(exclude = {
-    DataSourceAutoConfiguration.class,              // Spring Boot 자동 설정 제외
+    DataSourceAutoConfiguration.class,
     DataSourceTransactionManagerAutoConfiguration.class,
     MybatisAutoConfiguration.class
 })
 public class PlatFormDatabaseSource {
-    
-    // 플랫폼 DataSource Bean
+
+    // MySQL DataSource Bean
     @Bean(PLATFORM_DATASOURCE)
     @ConfigurationProperties("platform.domain.datasource")
     public DataSource platFormDataSource() {
@@ -90,30 +115,39 @@ public class PlatFormDatabaseSource {
             .type(HikariDataSource.class)
             .build();
     }
-    
-    // 플랫폼 트랜잭션 관리자
+
+    // MySQL 전용 트랜잭션 관리자
     @Bean(PLATFORM_DATASOURCE_MANAGER)
     public PlatformTransactionManager platFormTransactionManager(
         @Qualifier(PLATFORM_DATASOURCE) final DataSource dataSource
     ) {
         return new DataSourceTransactionManager(dataSource);
     }
-    
-    // JDBC 템플릿들 (총 3개)
+
+    // JDBC 템플릿
     @Bean(PLATFORM_DOMAIN_JDBC_TEMPLATE)
     public JdbcTemplate platFormDomainJdbcTemplate(...) { }
-    
-    @Bean(PLATFORM_DOMAIN_NAMED_PARAMETER_JDBC_OPERATIONS)
-    public NamedParameterJdbcOperations platFormDomainNamedParameterJdbcOperations() { }
 }
 ```
 
-#### **BatchConfig.java**
+**특징**:
+- ✅ MySQL 전용 독립 모듈
+- ✅ 자동 설정 제외로 수동 구성 가능
+- ✅ HikariCP 연결 풀 사용
+- ✅ 환경별 설정 분리 (local, dev)
+
+---
+
+### 1.2 batch/platform 모듈의 별도 DataSource
+
+배치 모듈은 자체적으로 DataSource를 정의합니다:
+
+#### BatchConfig.java
 ```java
 @Configuration
 public class BatchConfig {
-    
-    // 배치용 DataSource (별도)
+
+    // 배치용 DataSource (별도 DB)
     @Bean(BATCH_DOMAIN_DATA_SOURCE)
     @Primary
     @ConfigurationProperties("batch.domain.datasource")
@@ -122,7 +156,7 @@ public class BatchConfig {
             .type(HikariDataSource.class)
             .build();
     }
-    
+
     // 배치용 트랜잭션 관리자
     @Bean
     @Primary
@@ -133,38 +167,150 @@ public class BatchConfig {
 ```
 
 **분석**:
-- 각 모듈이 **독립적인 DataSource**를 가지고 있음
-- Qualifier를 통한 명시적 선택 가능
-- 자동 설정 제외로 **수동 구성** 가능하게 설계됨
+- 배치는 datasource/base 모듈을 사용하지 않음
+- 자체 DataSource 정의 (batch DB)
+- 향후 datasource/batch 모듈로 분리 가능
 
 ---
 
-## 2. jOOQ 설정 및 코드 생성
+## 2. jOOQ 설정 및 코드 생성 (모듈별 독립)
 
-### 2.1 jOOQ 빌드 설정 (build.gradle)
+### 2.1 datasource/base의 jOOQ 설정
 
+#### build.gradle
 ```gradle
+plugins {
+    id 'nu.studer.jooq' version '9.0'
+    id 'org.flywaydb.flyway' version '9.22.0'
+}
+
 jooq {
     version = jooqVersion
     configurations {
         main {
             generationTool {
                 jdbc {
-                    driver = DATABASE_DRIVER          // com.mysql.cj.jdbc.Driver
+                    driver = "com.mysql.cj.jdbc.Driver"
                     url = System.getenv("DB_URL") ?: "jdbc:mysql://localhost:3306/store?..."
                     user = System.getenv("DB_USER") ?: "root"
                     password = System.getenv("DB_PWD") ?: "root"
                 }
-                
+
                 generator {
                     name = 'org.jooq.codegen.DefaultGenerator'
                     database {
                         name = "org.jooq.meta.mysql.MySQLDatabase"  // MySQL 전용
                         inputSchema = "store"
                         unsignedTypes = true
+                        excludes = "flyway_schema_history|BATCH_.*"
                     }
-                    
+
+                    generate {
+                        daos = true
+                        records = true
+                        pojos = true
+                        interfaces = true
+                    }
+
+                    target {
+                        packageName = 'org.jooq.generated'
+                        directory = 'src/generated/java'
+                    }
+
                     strategy.name = "com.platform.common.base.jooq.CustomGeneratorStrategy"
+                }
+            }
+        }
+    }
+}
+
+flyway {
+    url = System.getenv("DB_URL") ?: "jdbc:mysql://localhost:3306/store?..."
+    user = System.getenv("DB_USER") ?: "root"
+    password = System.getenv("DB_PWD") ?: "root"
+    locations = ["filesystem:${project.projectDir}/flyway"]
+    encoding = "UTF-8"
+    outOfOrder = true
+    validateOnMigrate = true
+}
+```
+
+#### JooqConfig.java
+```java
+@Configuration
+@Import(PlatFormDatabaseSource.class)
+public class JooqConfig {
+
+    @Bean
+    public DSLContext dslContext(
+        DataSourceConnectionProvider connectionProvider,
+        DefaultConfigurationCustomizer customizer
+    ) {
+        DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
+        jooqConfiguration.setSQLDialect(SQLDialect.MYSQL);  // MySQL 방언
+        jooqConfiguration.set(connectionProvider);
+        customizer.customize(jooqConfiguration);
+        return DSL.using(jooqConfiguration);
+    }
+}
+```
+
+**특징**:
+- ✅ MySQL 스키마 전용 코드 생성
+- ✅ Flyway 마이그레이션 후 jOOQ 생성 자동화
+- ✅ 생성된 코드: `src/generated/` (.gitignore)
+- ✅ 커스텀 생성 전략으로 일관성 유지
+
+---
+
+### 2.2 새 DB 추가 시: datasource/postgres 모듈 예시
+
+#### 디렉토리 구조 (미래)
+```
+datasource/postgres/
+├── build.gradle                    # PostgreSQL 전용 jOOQ, Flyway
+├── flyway/                         # PostgreSQL 마이그레이션
+│   ├── V1__init_postgres.sql
+│   └── ...
+├── src/
+│   ├── main/
+│   │   ├── java/com/platform/datasource/postgres/
+│   │   │   ├── config/
+│   │   │   │   ├── PostgresDatabaseSource.java
+│   │   │   │   ├── PostgresTransactional.java
+│   │   │   │   ├── PostgresJooqConfig.java
+│   │   │   │   └── PostgresMybatisConfig.java
+│   │   │   ├── repository/
+│   │   │   │   ├── user/UserRepository.java
+│   │   │   │   └── ...
+│   │   │   └── mapper/
+│   │   └── resources/
+│   │       ├── application-datasource-postgres.yml
+│   │       └── mybatis-mapper/
+│   └── generated/                  # PostgreSQL jOOQ 생성 코드
+```
+
+#### build.gradle (PostgreSQL 전용)
+```gradle
+jooq {
+    configurations {
+        main {
+            generationTool {
+                jdbc {
+                    driver = "org.postgresql.Driver"
+                    url = "jdbc:postgresql://localhost:5432/platform_db"
+                }
+
+                generator {
+                    database {
+                        name = "org.jooq.meta.postgres.PostgresDatabase"  // PostgreSQL!
+                        inputSchema = "public"
+                    }
+
+                    target {
+                        packageName = 'org.jooq.postgres.generated'
+                        directory = 'src/generated/java'
+                    }
                 }
             }
         }
@@ -172,39 +318,13 @@ jooq {
 }
 ```
 
-### 2.2 jOOQ 런타임 설정 (JooqConfig.java)
-
-```java
-@Configuration
-@Import(PlatFormDatabaseSource.class)
-public class JooqConfig {
-    
-    @Bean
-    public DSLContext dslContext(
-        DataSourceConnectionProvider connectionProvider,
-        DefaultConfigurationCustomizer defaultConfigurationCustomizer
-    ) {
-        DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
-        jooqConfiguration.setSQLDialect(SQLDialect.MYSQL);  // MySQL만 지원
-        jooqConfiguration.set(connectionProvider);
-        defaultConfigurationCustomizer.customize(jooqConfiguration);
-        return DSL.using(jooqConfiguration);
-    }
-}
-```
-
-**분석**:
-- **단일 스키마** 코드 생성만 지원
-- **MySQL 방언** 하드코딩
-- 환경변수로 DB 연결 정보 변경 가능 (빌드 시점에만)
-- 생성된 클래스: `/src/generated/` (.gitignore)
-
 ---
 
-## 3. MyBatis 설정
+## 3. MyBatis 설정 (모듈별 독립)
 
-### 3.1 MyBatis 설정 (MybatisConfig.java)
+### 3.1 datasource/base의 MyBatis 설정
 
+#### MybatisConfig.java
 ```java
 @Configuration
 @MapperScan(
@@ -213,51 +333,77 @@ public class JooqConfig {
     annotationClass = Mapper.class
 )
 public class MybatisConfig {
-    
+
     @Bean
     public SqlSessionFactory platformDomainSqlSessionFactory(
-        @Qualifier(PLATFORM_DATASOURCE) final DataSource storeDomainDataSource,
+        @Qualifier(PLATFORM_DATASOURCE) final DataSource dataSource,
         final ApplicationContext applicationContext
     ) throws Exception {
         final SqlSessionFactoryBean factory = new SqlSessionFactoryBean();
-        factory.setDataSource(storeDomainDataSource);
+        factory.setDataSource(dataSource);  // MySQL DataSource
         factory.setMapperLocations(
             applicationContext.getResources("classpath:mybatis-mapper/**/*.xml")
         );
+
+        org.apache.ibatis.session.Configuration config =
+            new org.apache.ibatis.session.Configuration();
+        config.setMapUnderscoreToCamelCase(true);
+        factory.setConfiguration(config);
+
         return factory.getObject();
     }
 }
 ```
 
-### 3.2 MyBatis Mapper 구조
-
+#### Mapper 구조
 ```
 datasource/base/src/main/resources/mybatis-mapper/
 ├── user/
-│   └── UserMapper.xml           # 사용자 조회 (1개 쿼리)
-├── batch/
-│   ├── KapaDataMapper.xml        # KAPA 데이터 처리
-│   ├── LtisDataMapper.xml        # LTIS 데이터 처리
-│   ├── LtisMemberMapper.xml      # LTIS 회원 정보
-│   └── KakaoMapper.xml           # 카카오 API 연동
-└── ... (총 7개 Mapper)
+│   └── UserMapper.xml           # 사용자 조회
+├── batch/                       # ⚠️ 향후 batch 모듈로 이동 권장
+│   ├── KapaDataMapper.xml
+│   ├── LtisDataMapper.xml
+│   └── ...
 ```
 
 **분석**:
-- **배치 작업 중심**의 복잡한 SQL
-- Mapper 당 **단일 SqlSessionFactory** 참조
-- 다중 SqlSessionFactory 추가 가능하지만 **현재는 구현 안 됨**
+- ✅ datasource/base 모듈에서 MySQL 전용 Mapper 관리
+- ⚠️ 배치 관련 Mapper는 향후 별도 모듈로 분리 권장
 
 ---
 
-## 4. 트랜잭션 관리
+### 3.2 새 datasource 모듈의 MyBatis 설정 예시
 
-### 4.1 커스텀 @PlatFormTransactional
+```java
+// datasource/postgres/src/.../config/PostgresMybatisConfig.java
+
+@Configuration
+@MapperScan(
+    basePackages = {"com.platform.datasource.postgres.mapper"},
+    sqlSessionFactoryRef = "postgresSqlSessionFactory",
+    annotationClass = Mapper.class
+)
+public class PostgresMybatisConfig {
+
+    @Bean
+    public SqlSessionFactory postgresSqlSessionFactory(
+        @Qualifier("postgresDataSource") final DataSource postgresDataSource
+    ) throws Exception {
+        // PostgreSQL 전용 SqlSessionFactory
+    }
+}
+```
+
+---
+
+## 4. 트랜잭션 관리 (모듈별 독립)
+
+### 4.1 datasource/base의 커스텀 @PlatFormTransactional
 
 ```java
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-@Transactional(PLATFORM_DATASOURCE_MANAGER)  // 명시적 매니저 지정
+@Transactional(PLATFORM_DATASOURCE_MANAGER)  // MySQL TransactionManager 명시
 public @interface PlatFormTransactional {
     Propagation propagation() default Propagation.REQUIRED;
     Isolation isolation() default Isolation.DEFAULT;
@@ -266,51 +412,140 @@ public @interface PlatFormTransactional {
 }
 ```
 
-### 4.2 사용 예시
+### 4.2 사용 예시 (Write/Read 분리)
 
 ```java
+// datasource/base/src/.../repository/receipt/ReceiptRepository.java
 @Repository
-@PlatFormTransactional                          // 읽기/쓰기
+@PlatFormTransactional  // MySQL 쓰기 트랜잭션
 public class ReceiptRepository {
-    // INSERT, UPDATE, DELETE 작업
+    private final DSLContext dslContext;  // MySQL DSLContext
+
+    public void insert(Receipt receipt) {
+        dslContext.insertInto(RECEIPT).set(...).execute();
+    }
 }
 
+// datasource/base/src/.../repository/receipt/ReceiptReadRepository.java
 @Repository
-@PlatFormTransactional(readOnly = true)         // 읽기 전용
+@PlatFormTransactional(readOnly = true)  // MySQL 읽기 트랜잭션
 public class ReceiptReadRepository {
-    // SELECT 작업만 수행
+    private final DSLContext dslContext;  // MySQL DSLContext
+
+    public Optional<Receipt> findById(Long id) {
+        return dslContext.selectFrom(RECEIPT)
+            .where(RECEIPT.ID.eq(id))
+            .fetchOptionalInto(Receipt.class);
+    }
 }
 ```
 
-**분석**:
-- ✅ **Repository 분리** (Write vs Read)
-- ✅ 트랜잭션 관리자 **명시적 지정**
-- ⚠️ 읽기 전용도 **동일 DataSource** 사용
-- ⚠️ **읽기 복제본 라우팅** 미구현
+**특징**:
+- ✅ Repository 패턴으로 Write/Read 분리
+- ✅ 각 datasource 모듈마다 별도 트랜잭션 어노테이션 정의 가능
+- ✅ TransactionManager 명시적 지정
 
 ---
 
-## 5. 현재 멀티 DB 지원 현황
+### 4.3 PostgreSQL 모듈의 트랜잭션 관리 예시
 
-### 5.1 현재 구조
+```java
+// datasource/postgres/src/.../config/PostgresTransactional.java
+@Transactional("postgresTransactionManager")  // PostgreSQL TransactionManager
+public @interface PostgresTransactional {
+    boolean readOnly() default false;
+}
+
+// datasource/postgres/src/.../config/PostgresDatabaseSource.java
+@Bean("postgresTransactionManager")
+public PlatformTransactionManager postgresTransactionManager(
+    @Qualifier("postgresDataSource") DataSource postgresDataSource
+) {
+    return new DataSourceTransactionManager(postgresDataSource);
+}
+```
+
+---
+
+## 5. api/batch 모듈에서의 datasource 사용
+
+### 5.1 api/platform의 의존성 설정
+
+#### build.gradle
+```gradle
+dependencies {
+    // datasource 모듈들을 선택적으로 의존
+    implementation(project(":datasource-base"))      // MySQL 사용
+    // implementation(project(":datasource-postgres"))  // PostgreSQL 사용 시 추가
+    // implementation(project(":datasource-oracle"))    // Oracle 사용 시 추가
+
+    implementation(project(":common-web"))
+    // ... 기타 의존성
+}
+```
+
+### 5.2 Controller에서 여러 datasource 사용
+
+```java
+@RestController
+@RequestMapping("/api/v1/receipts")
+@RequiredArgsConstructor
+public class ReceiptController {
+
+    // MySQL 리포지토리 (datasource/base)
+    private final ReceiptRepository receiptRepository;
+    private final ReceiptReadRepository receiptReadRepository;
+
+    // PostgreSQL 리포지토리 (datasource/postgres) - 미래
+    // private final PostgresReceiptRepository postgresReceiptRepository;
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ReceiptDto> getReceipt(@PathVariable Long id) {
+        // MySQL에서 조회
+        Receipt receipt = receiptReadRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException());
+        return ResponseEntity.ok(toDto(receipt));
+    }
+
+    @PostMapping
+    public ResponseEntity<Void> createReceipt(@RequestBody CreateReceiptDto dto) {
+        // MySQL에 저장
+        receiptRepository.insert(toEntity(dto));
+        return ResponseEntity.ok().build();
+    }
+}
+```
+
+---
+
+## 6. 현재 멀티 DB 지원 현황
+
+### 6.1 현재 구조
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    API Server                            │
 │  (api/platform:8080)                                    │
 │                                                          │
+│  의존성:                                                 │
+│  - datasource-base (MySQL)                              │
+│                                                          │
 │  ┌───────────────────────────────────────────────────┐  │
-│  │  JooqConfig (DSLContext)                          │  │
-│  │  ├─ DataSource: PLATFORM_DATASOURCE               │  │
-│  │  └─ TransactionManager: PLATFORM_DATASOURCE_MGR   │  │
-│  └──────────────┬──────────────────────────────────┘  │
-│                 │                                      │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  MybatisConfig (SqlSessionFactory)               │  │
-│  │  ├─ DataSource: PLATFORM_DATASOURCE              │  │
-│  │  └─ Mappers: 배치 관련 복잡한 쿼리                  │  │
+│  │  Controller / Service                             │  │
+│  │  ├─ ReceiptRepository (MySQL)                     │  │
+│  │  └─ BoardRepository (MySQL)                       │  │
 │  └──────────────┬──────────────────────────────────┘  │
 └─────────────────┼──────────────────────────────────────┘
+                  │
+                  ▼
+      ┌────────────────────────┐
+      │  datasource/base       │
+      │  (MySQL 전용 모듈)      │
+      │  ├─ JooqConfig         │
+      │  ├─ MybatisConfig      │
+      │  ├─ Repository         │
+      │  └─ TransactionManager │
+      └──────────┬──────────────┘
                   │
            ┌──────▼──────┐
            │   MySQL DB  │
@@ -335,416 +570,206 @@ public class ReceiptReadRepository {
            └─────────────┘
 ```
 
-### 5.2 멀티 DB 지원 매트릭스
+### 6.2 멀티 DB 지원 매트릭스
 
-| 기능 | 현재 상태 | 확장 가능성 |
-|------|---------|----------|
-| **여러 DataSource 정의** | ✅ 가능 | ✅ 매우 높음 |
-| **DataSource별 TransactionManager** | ✅ 가능 | ✅ 매우 높음 |
-| **jOOQ 다중 DB 지원** | ❌ 미지원 | ⚠️ 낮음 |
-| **MyBatis 다중 SqlSessionFactory** | ✅ 가능 | ✅ 높음 |
-| **읽기/쓰기 분리** | ⚠️ 부분 | ✅ 높음 |
-| **읽기 복제본 자동 라우팅** | ❌ 미구현 | ✅ 높음 |
-| **다중 DB 벤더 지원** | ❌ MySQL만 | ⚠️ 낮음 |
-| **샤딩/파티셔닝** | ❌ 미구현 | ✅ 높음 |
-| **분산 트랜잭션** | ⚠️ 부분 | ⚠️ 중간 |
+| 기능 | 현재 상태 | 확장 방법 |
+|------|---------|---------|
+| **여러 DB 벤더 지원** | ✅ 가능 | datasource/{db-name} 모듈 추가 |
+| **모듈별 독립 jOOQ** | ✅ 가능 | 각 모듈의 build.gradle 설정 |
+| **모듈별 독립 Flyway** | ✅ 가능 | 각 모듈의 flyway/ 디렉토리 |
+| **모듈별 독립 Repository** | ✅ 가능 | 각 모듈의 repository/ 패키지 |
+| **모듈별 독립 TransactionManager** | ✅ 가능 | 각 모듈의 Config 클래스 |
+| **읽기/쓰기 분리** | ⚠️ 부분 | 모듈 내 RoutingDataSource 추가 |
+| **읽기 복제본 자동 라우팅** | ❌ 미구현 | 모듈별로 구현 가능 |
+| **샤딩/파티셔닝** | ❌ 미구현 | 별도 샤딩 로직 필요 |
+| **분산 트랜잭션** | ❌ 미구현 | JTA 도입 필요 |
 
 ---
 
-## 6. 확장 시나리오별 필요한 변경사항
+## 7. 확장 시나리오별 구현 방법
 
-### Scenario 1: 읽기 복제본(Read Replica) 추가
+### Scenario 1: PostgreSQL 지원 추가 (가장 일반적)
 
-#### 현재 문제
-```java
-// 현재: 읽기도 동일 DB 사용
-@PlatFormTransactional(readOnly = true)
-public class ReceiptReadRepository {
-    private final DSLContext dslContext;  // 마스터 DB만 사용
+#### 필요한 작업
+
+**1. 새 모듈 생성**
+```bash
+mkdir -p datasource/postgres
+```
+
+**2. build.gradle 작성**
+```gradle
+// datasource/postgres/build.gradle
+
+plugins {
+    id 'java-library'
+    id 'nu.studer.jooq' version '9.0'
+    id 'org.flywaydb.flyway' version '9.22.0'
+}
+
+dependencies {
+    implementation(project(":common-base"))
+
+    // PostgreSQL 드라이버
+    implementation 'org.postgresql:postgresql:42.7.1'
+
+    // jOOQ, MyBatis
+    jooqGenerator 'org.postgresql:postgresql:42.7.1'
+}
+
+jooq {
+    configurations {
+        main {
+            generationTool {
+                jdbc {
+                    driver = "org.postgresql.Driver"
+                    url = "jdbc:postgresql://localhost:5432/platform_db"
+                    user = "postgres"
+                    password = "postgres"
+                }
+
+                generator {
+                    database {
+                        name = "org.jooq.meta.postgres.PostgresDatabase"
+                        inputSchema = "public"
+                    }
+
+                    target {
+                        packageName = 'org.jooq.postgres.generated'
+                        directory = 'src/generated/java'
+                    }
+                }
+            }
+        }
+    }
+}
+
+flyway {
+    url = "jdbc:postgresql://localhost:5432/platform_db"
+    user = "postgres"
+    password = "postgres"
+    locations = ["filesystem:${project.projectDir}/flyway"]
 }
 ```
 
-#### 확장 방안: RoutingDataSource 구현
+**3. PostgreSQL Config 작성**
+```java
+// datasource/postgres/src/.../config/PostgresDatabaseSource.java
 
-**필요한 변경**:
+@Configuration
+@EnableAutoConfiguration(exclude = {
+    DataSourceAutoConfiguration.class,
+    DataSourceTransactionManagerAutoConfiguration.class
+})
+public class PostgresDatabaseSource {
 
-1. **AbstractRoutingDataSource 구현** (약 50줄)
-   ```java
-   public class ReadWriteRoutingDataSource extends AbstractRoutingDataSource {
-       @Override
-       protected Object determineCurrentLookupKey() {
-           return TransactionSynchronizationManager.isCurrentTransactionReadOnly() 
-               ? "read-replica" : "master";
-       }
-   }
-   ```
+    @Bean("postgresDataSource")
+    @ConfigurationProperties("postgres.datasource")
+    public DataSource postgresDataSource() {
+        return DataSourceBuilder.create()
+            .type(HikariDataSource.class)
+            .build();
+    }
 
-2. **설정 추가** (약 100줄)
-   ```yaml
-   platform:
-     domain:
-       datasource:
-         master:
-           jdbcUrl: jdbc:mysql://master-db:3306/store
-         replica:
-           jdbcUrl: jdbc:mysql://read-replica:3306/store
-   ```
+    @Bean("postgresTransactionManager")
+    public PlatformTransactionManager postgresTransactionManager(
+        @Qualifier("postgresDataSource") DataSource postgresDataSource
+    ) {
+        return new DataSourceTransactionManager(postgresDataSource);
+    }
+}
+```
 
-3. **PlatFormDatabaseSource 수정** (약 30줄)
-   ```java
-   @Bean(PLATFORM_DATASOURCE)
-   public DataSource platFormDataSource() {
-       Map<Object, Object> targetDataSources = new HashMap<>();
-       targetDataSources.put("master", masterDataSource());
-       targetDataSources.put("read-replica", replicaDataSource());
-       
-       ReadWriteRoutingDataSource routingDataSource = 
-           new ReadWriteRoutingDataSource();
-       routingDataSource.setDefaultTargetDataSource(masterDataSource());
-       routingDataSource.setTargetDataSources(targetDataSources);
-       return routingDataSource;
-   }
-   ```
+**4. PostgreSQL JooqConfig 작성**
+```java
+// datasource/postgres/src/.../config/PostgresJooqConfig.java
+
+@Configuration
+@Import(PostgresDatabaseSource.class)
+public class PostgresJooqConfig {
+
+    @Bean("postgresDslContext")
+    public DSLContext postgresDslContext(
+        @Qualifier("postgresDataSource") DataSource postgresDataSource
+    ) {
+        DefaultConfiguration config = new DefaultConfiguration();
+        config.setSQLDialect(SQLDialect.POSTGRES);  // PostgreSQL 방언
+        config.setDataSource(postgresDataSource);
+        return DSL.using(config);
+    }
+}
+```
+
+**5. PostgreSQL Repository 작성**
+```java
+// datasource/postgres/src/.../repository/user/UserRepository.java
+
+@Repository
+public class PostgresUserRepository {
+
+    @Qualifier("postgresDslContext")
+    private final DSLContext dslContext;  // PostgreSQL DSLContext
+
+    public Optional<User> findById(Long id) {
+        return dslContext.selectFrom(USERS)
+            .where(USERS.ID.eq(id))
+            .fetchOptionalInto(User.class);
+    }
+}
+```
+
+**6. api/platform에서 사용**
+```gradle
+// api/platform/build.gradle
+dependencies {
+    implementation(project(":datasource-base"))      // MySQL
+    implementation(project(":datasource-postgres"))  // PostgreSQL 추가!
+}
+```
+
+```java
+// api/platform/src/.../controller/UserController.java
+@RestController
+@RequiredArgsConstructor
+public class UserController {
+
+    // MySQL 리포지토리
+    private final ReceiptRepository receiptRepository;  // datasource/base
+
+    // PostgreSQL 리포지토리
+    private final PostgresUserRepository postgresUserRepository;  // datasource/postgres
+
+    @GetMapping("/users/{id}")
+    public ResponseEntity<UserDto> getUser(@PathVariable Long id) {
+        // PostgreSQL에서 조회
+        User user = postgresUserRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException());
+        return ResponseEntity.ok(toDto(user));
+    }
+}
+```
 
 **영향도**:
-- Repository 코드: **수정 없음** ✅
-- 트랜잭션 관리: **기존 @PlatFormTransactional 활용** ✅
-- jOOQ/MyBatis: **자동 라우팅** ✅
-- **예상 구현 시간**: 2-3일
+- 기존 코드 수정: ❌ 없음 (완전히 독립)
+- 새 모듈 생성: ✅ 필요
+- 예상 시간: 1-2일
 
 **구현 복잡도**: ⭐⭐ (낮음)
 
 ---
 
-### Scenario 2: 다른 DB 벤더 추가 (PostgreSQL)
+### Scenario 2: 읽기 복제본 추가 (모듈 내부)
 
-#### 현재 문제
-- jOOQ: MySQL 방언만 하드코딩
-- 빌드 시점에 코드 생성 (스키마 변경 시 재생성 필요)
+datasource/base 모듈 내에서 Master/Replica 라우팅을 구현합니다.
 
-#### 확장 방안
+#### 필요한 작업
 
-**Option A: 각 벤더별 별도 DataSource + jOOQ (추천)**
-
-**필요한 변경**:
-
-1. **새로운 jOOQ 설정** (datasource-pg 모듈 생성)
-   ```gradle
-   // datasource/pg/build.gradle
-   jooq {
-       configurations {
-           main {
-               generationTool {
-                   database {
-                       name = "org.jooq.meta.postgres.PostgresDatabase"
-                       inputSchema = "public"  // PostgreSQL 기본 스키마
-                   }
-               }
-           }
-       }
-   }
-   ```
-
-2. **PostgreSQL Config 추가**
-   ```java
-   @Configuration
-   public class PostgresDatabaseSource {
-       @Bean("postgresDataSource")
-       @ConfigurationProperties("postgres.datasource")
-       public DataSource postgresDataSource() {
-           return DataSourceBuilder.create()
-               .type(HikariDataSource.class)
-               .build();
-       }
-       
-       @Bean("postgresDslContext")
-       public DSLContext postgresDslContext(
-           @Qualifier("postgresDataSource") DataSource ds
-       ) {
-           DefaultConfiguration config = new DefaultConfiguration();
-           config.setSQLDialect(SQLDialect.POSTGRES);  // ← 중요
-           return DSL.using(config);
-       }
-   }
-   ```
-
-3. **Repository 분리**
-   ```java
-   @Repository
-   public class PostgresReceiptRepository {
-       @Qualifier("postgresDslContext")
-       private final DSLContext dslContext;
-       
-       // PostgreSQL 전용 구현
-   }
-   ```
-
-**설정 추가**:
-```yaml
-platform:
-  mysql:
-    datasource:
-      jdbcUrl: jdbc:mysql://localhost:3306/store
-      
-postgres:
-  datasource:
-    jdbcUrl: jdbc:postgresql://localhost:5432/platform_db
-    driverClassName: org.postgresql.Driver
-    maximumPoolSize: 10
-```
-
-**영향도**:
-- 기존 MySQL 코드: **수정 없음** ✅
-- 새로운 도메인: **별도 Repository 필요** ⚠️
-- 트랜잭션: **벤더별 TransactionManager 필요** ⚠️
-- **예상 구현 시간**: 5-7일
-
-**구현 복잡도**: ⭐⭐⭐ (중간)
-
----
-
-### Scenario 3: 데이터베이스 샤딩
-
-#### 구현 패턴
-
-**사용자 ID 기반 샤딩**:
-```
-User 1-1000     → MySQL Shard 1
-User 1001-2000  → MySQL Shard 2
-User 2001-3000  → MySQL Shard 3
-```
-
-**필요한 변경**:
-
-1. **ShardingDataSource 구현** (약 200줄)
-   ```java
-   public class ShardingDataSource extends AbstractDataSource {
-       private final Map<Integer, DataSource> shards;
-       
-       @Override
-       public Connection getConnection() throws SQLException {
-           int shardKey = ShardingContext.getShardKey();
-           int shardId = shardKey % shards.size();
-           return shards.get(shardId).getConnection();
-       }
-   }
-   ```
-
-2. **ShardingContext 구현**
-   ```java
-   public class ShardingContext {
-       private static final ThreadLocal<Integer> SHARD_KEY = 
-           new ThreadLocal<>();
-       
-       public static void setShardKey(int userId) {
-           SHARD_KEY.set(userId % 3);  // 3개 샤드 기준
-       }
-       
-       public static int getShardKey() {
-           return SHARD_KEY.get();
-       }
-       
-       public static void clear() {
-           SHARD_KEY.remove();
-       }
-   }
-   ```
-
-3. **AOP로 자동 설정**
-   ```java
-   @Aspect
-   @Component
-   public class ShardingAspect {
-       @Around("@annotation(Sharded)")
-       public Object around(ProceedingJoinPoint pjp) throws Throwable {
-           Sharded sharded = getAnnotation(pjp);
-           int userId = (int) pjp.getArgs()[sharded.paramIndex()];
-           
-           ShardingContext.setShardKey(userId);
-           try {
-               return pjp.proceed();
-           } finally {
-               ShardingContext.clear();
-           }
-       }
-   }
-   ```
-
-**사용 예시**:
+**1. RoutingDataSource 구현**
 ```java
-@Sharded(paramIndex = 0)  // 첫 번째 파라미터가 userId
-public ReceiptDto getReceipt(int userId, long receiptId) {
-    // ShardingContext에 의해 자동으로 올바른 샤드로 라우팅
-    return receiptReadRepository.findById(receiptId);
-}
-```
-
-**영향도**:
-- Repository 코드: **@Sharded 어노테이션만 추가** ⚠️
-- 스키마: **각 샤드마다 동일** ✅
-- 트랜잭션: **크로스 샤드는 불가** ❌
-- **예상 구현 시간**: 7-10일
-
-**구현 복잡도**: ⭐⭐⭐⭐ (높음)
-
-**주의사항**:
-- 크로스 샤드 조인 불가능
-- 글로벌 트랜잭션 구현 복잡
-- 배포 후 리샤딩 어려움
-
----
-
-### Scenario 4: 분산 트랜잭션 (JTA)
-
-#### 현재 상태
-- 단일 DataSource 트랜잭션만 지원
-- 여러 DB에 걸친 트랜잭션 불가능
-
-#### 확장 방안
-
-1. **Narayana (JTA) 도입**
-   ```gradle
-   implementation 'org.springframework.boot:spring-boot-starter-jta-narayana'
-   ```
-
-2. **XADataSource 래핑**
-   ```java
-   @Bean
-   public DataSource platformXADataSource() {
-       MysqlXADataSource mysqlXADataSource = new MysqlXADataSource();
-       mysqlXADataSource.setURL("jdbc:mysql://localhost:3306/store");
-       
-       return new DataSourceXAWrapper(mysqlXADataSource, 
-           "platformXA");
-   }
-   ```
-
-3. **JTA 트랜잭션 사용**
-   ```java
-   @Transactional  // JTA TransactionManager 사용
-   public void complexOperation(long userId) {
-       // 스냅에서 데이터 읽기
-       snapRepository.findByUserId(userId);
-       
-       // MySQL에서 데이터 쓰기
-       receiptRepository.insert(receipt);
-       
-       // 둘 다 커밋되거나 모두 롤백
-   }
-   ```
-
-**영향도**:
-- 성능: **오버헤드 약 20-30%** ⚠️
-- 트랜잭션 타임아웃: **더 짧은 설정 필요** ⚠️
-- 데드락: **더 자주 발생 가능** ⚠️
-- **예상 구현 시간**: 3-5일
-
-**구현 복잡도**: ⭐⭐⭐ (중간)
-
-**권장하지 않는 경우**:
-- 높은 동시성 필요 (높은 데드락 가능성)
-- 실시간 응답 요구 (트랜잭션 오버헤드)
-- 대신 **이벤트 소싱** 고려
-
----
-
-## 7. 확장 권고사항
-
-### 7.1 우선순위별 확장 로드맵
-
-| 우선순위 | 기능 | 이유 | 예상 기간 |
-|---------|------|------|---------|
-| **1순위** | 읽기 복제본 | 성능 개선 + 복잡도 낮음 | 2-3일 |
-| **2순위** | 배치 DB 분리 | 이미 부분 구현됨 | 1-2일 |
-| **3순위** | 다중 DB 벤더 | 향후 필요시 | 5-7일 |
-| **4순위** | 샤딩 | 대규모 데이터 시 | 7-10일 |
-| **5순위** | JTA | 필수일 시만 | 3-5일 |
-
-### 7.2 현재 구조 개선 권고사항
-
-#### **즉시 구현 가능** (1주 이내)
-
-1. **배치 DB 완전 분리** ✅ 80% 완료
-   ```java
-   // datasource/base의 batch-관련 MyBatis Mapper를
-   // batch 모듈로 이동
-   // → 배치 전용 데이터 소스로 명시적 연결
-   ```
-
-2. **ReadRepository 자동 라우팅** (선택사항)
-   ```java
-   // @PlatFormTransactional(readOnly=true)를 자동 감지
-   // 읽기 전용 쿼리는 별도 DataSource로 라우팅
-   ```
-
-#### **중기 계획** (1-3개월)
-
-3. **jOOQ 버전 업그레이드**
-   - 현재: 3.19.18 → 최신 3.20+
-   - 다중 스키마 생성 지원 개선
-
-4. **MyBatis Dynamic SQL** 도입
-   ```java
-   // XML 대신 Java로 SQL 구성
-   // 다중 DB 벤더 지원 용이
-   ```
-
-#### **장기 계획** (3-6개월)
-
-5. **이벤트 소싱 도입**
-   - 분산 데이터베이스 환경에 적합
-   - 트랜잭션 관리 단순화
-
----
-
-## 8. 기술 체크리스트
-
-### 현재 상태 평가
-
-```
-데이터소스 설정 구조
-├─ ✅ DataSource 빈 분리 가능
-├─ ✅ 환경별 설정 분리
-├─ ✅ TransactionManager 분리
-└─ ✅ Auto-configuration 제외
-
-jOOQ 설정
-├─ ✅ 코드 생성 자동화
-├─ ✅ 커스텀 생성 전략
-├─ ✅ 방언 설정 가능
-└─ ❌ 다중 스키마 생성 미지원
-
-MyBatis 설정
-├─ ✅ SqlSessionFactory 분리 가능
-├─ ✅ Mapper 스캔 커스터마이징
-├─ ✅ 타입 핸들러 설정
-└─ ⚠️ 다중 SqlSessionFactory 미사용
-
-트랜잭션 관리
-├─ ✅ 커스텀 어노테이션 제공
-├─ ✅ 읽기/쓰기 분리 어노테이션
-├─ ✅ TransactionManager 명시 선택
-└─ ❌ 분산 트랜잭션 미지원
-
-Repository 패턴
-├─ ✅ Write/Read 저장소 분리
-├─ ✅ 도메인별 저장소 조직화
-├─ ✅ 저장소별 트랜잭션 정책
-└─ ⚠️ 라우팅 로직 없음
-```
-
----
-
-## 9. 구현 예제: 읽기 복제본 추가
-
-### 단계별 구현
-
-#### 1단계: RoutingDataSource 구현
-```java
-// datasource/base/src/main/java/.../routing/ReadWriteRoutingDataSource.java
+// datasource/base/src/.../config/routing/ReadWriteRoutingDataSource.java
 
 public class ReadWriteRoutingDataSource extends AbstractRoutingDataSource {
-    
+
     @Override
     protected Object determineCurrentLookupKey() {
         boolean isReadOnly = TransactionSynchronizationManager
@@ -754,147 +779,243 @@ public class ReadWriteRoutingDataSource extends AbstractRoutingDataSource {
 }
 ```
 
-#### 2단계: 설정 수정
+**2. 설정 추가**
 ```yaml
-# application-datasource-base.yml
+# datasource/base/src/main/resources/application-datasource-base.yml
 platform:
   domain:
     datasource:
       master:
         poolName: platform-master-cp
-        type: com.zaxxer.hikari.HikariDataSource
-        driverClassName: com.mysql.cj.jdbc.Driver
-        jdbcUrl: "jdbc:mysql://db-master:3306/store?..."
+        jdbcUrl: "jdbc:mysql://db-master:3306/store"
         username: root
         password: root
         maximumPoolSize: 20
-        
+
       replica:
         poolName: platform-replica-cp
-        type: com.zaxxer.hikari.HikariDataSource
-        driverClassName: com.mysql.cj.jdbc.Driver
-        jdbcUrl: "jdbc:mysql://db-replica:3306/store?..."
+        jdbcUrl: "jdbc:mysql://db-replica:3306/store"
         username: root
         password: root
         maximumPoolSize: 20
 ```
 
-#### 3단계: PlatFormDatabaseSource 수정
+**3. PlatFormDatabaseSource 수정**
 ```java
 @Bean(PLATFORM_DATASOURCE)
 public DataSource platFormDataSource() {
-    // 마스터 DataSource
-    DataSource masterDataSource = DataSourceBuilder.create()
-        .type(HikariDataSource.class)
-        .driverClassName(properties.getMaster().getDriverClassName())
-        .url(properties.getMaster().getJdbcUrl())
-        .username(properties.getMaster().getUsername())
-        .password(properties.getMaster().getPassword())
-        .build();
-    
-    // 읽기 복제본 DataSource
-    DataSource replicaDataSource = DataSourceBuilder.create()
-        .type(HikariDataSource.class)
-        .driverClassName(properties.getReplica().getDriverClassName())
-        .url(properties.getReplica().getJdbcUrl())
-        .username(properties.getReplica().getUsername())
-        .password(properties.getReplica().getPassword())
-        .build();
-    
-    // 라우팅 DataSource
-    ReadWriteRoutingDataSource routingDataSource = 
+    DataSource masterDataSource = createDataSource(masterProperties);
+    DataSource replicaDataSource = createDataSource(replicaProperties);
+
+    ReadWriteRoutingDataSource routingDataSource =
         new ReadWriteRoutingDataSource();
     routingDataSource.setDefaultTargetDataSource(masterDataSource);
-    
+
     Map<Object, Object> targetDataSources = new HashMap<>();
     targetDataSources.put("master", masterDataSource);
     targetDataSources.put("read-replica", replicaDataSource);
-    
+
     routingDataSource.setTargetDataSources(targetDataSources);
     routingDataSource.afterPropertiesSet();
-    
+
     return routingDataSource;
 }
 ```
 
-#### 4단계: 테스트
+**4. 기존 Repository 코드는 수정 불필요**
 ```java
-@Test
-public void testReadWriteRouting() {
-    // 읽기 작업: 읽기 복제본으로 라우팅
-    receiptReadRepository.findById(1L);  // replica로 이동
-    
-    // 쓰기 작업: 마스터로 라우팅
-    receiptRepository.insert(receipt);   // master로 이동
+// 자동으로 라우팅됨
+@PlatFormTransactional(readOnly = true)  // → replica로 자동 라우팅
+public class ReceiptReadRepository {
+    // 코드 변경 없음!
 }
+```
+
+**영향도**:
+- Repository 코드: ❌ 수정 없음
+- datasource/base 모듈만 수정: ✅
+- 예상 시간: 2-3일
+- 성능 개선: +20~40% 읽기 처리량
+
+**구현 복잡도**: ⭐⭐ (낮음)
+
+---
+
+### Scenario 3: MongoDB 추가 (NoSQL)
+
+datasource/mongodb 모듈을 생성합니다 (jOOQ 대신 Spring Data MongoDB 사용).
+
+#### 디렉토리 구조
+```
+datasource/mongodb/
+├── build.gradle
+├── src/
+│   ├── main/
+│   │   ├── java/com/platform/datasource/mongodb/
+│   │   │   ├── config/
+│   │   │   │   ├── MongoDatabaseSource.java
+│   │   │   │   └── MongoTransactional.java
+│   │   │   └── repository/
+│   │   │       ├── log/LogRepository.java
+│   │   │       └── event/EventRepository.java
+│   │   └── resources/
+│   │       └── application-datasource-mongodb.yml
+```
+
+#### build.gradle
+```gradle
+dependencies {
+    implementation(project(":common-base"))
+    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+}
+```
+
+#### MongoDB Config
+```java
+@Configuration
+@EnableMongoRepositories(basePackages = "com.platform.datasource.mongodb.repository")
+public class MongoDatabaseSource {
+
+    @Bean("mongoTemplate")
+    public MongoTemplate mongoTemplate() {
+        return new MongoTemplate(mongoClient(), "platform_db");
+    }
+}
+```
+
+#### Repository
+```java
+public interface LogRepository extends MongoRepository<Log, String> {
+    List<Log> findByUserIdAndCreatedAtBetween(Long userId, LocalDateTime from, LocalDateTime to);
+}
+```
+
+**영향도**:
+- 기존 MySQL 코드: ❌ 영향 없음
+- 새 모듈 생성: ✅ 필요
+- jOOQ 미사용: ✅ Spring Data MongoDB 사용
+- 예상 시간: 1-2일
+
+---
+
+## 8. 확장 권고사항
+
+### 8.1 우선순위별 로드맵
+
+| 우선순위 | 작업 | 이유 | 예상 기간 |
+|---------|------|------|---------|
+| **1순위** | 배치 매퍼 분리 | 구조 정리, 모듈 독립성 | 1일 |
+| **2순위** | 읽기 복제본 (datasource/base 내) | 성능 개선 + 복잡도 낮음 | 2-3일 |
+| **3순위** | datasource/postgres 모듈 추가 | 다중 벤더 지원 예시 | 1-2일 |
+| **4순위** | datasource/mongodb 모듈 추가 | NoSQL 지원 | 1-2일 |
+| **5순위** | 샤딩 (필요시) | 대규모 데이터 | 7-10일 |
+
+### 8.2 즉시 개선 사항
+
+#### 1. 배치 매퍼를 batch 모듈로 이동
+
+**현재 문제**:
+```
+datasource/base/src/main/resources/mybatis-mapper/
+├── user/              ← 플랫폼용 (OK)
+└── batch/             ← 배치용 (datasource/base에 혼재)
+    ├── KapaDataMapper.xml
+    └── LtisDataMapper.xml
+```
+
+**개선 후**:
+```
+datasource/base/src/main/resources/mybatis-mapper/
+└── user/              ← 플랫폼용만
+
+batch/platform/src/main/resources/mybatis-mapper/
+└── batch/             ← 배치 전용
+    ├── KapaDataMapper.xml
+    └── LtisDataMapper.xml
+```
+
+**효과**: 모듈 경계 명확화, 배치 DB 사용 명시적
+
+---
+
+## 9. settings.gradle 및 모듈 등록
+
+새 datasource 모듈 추가 시 settings.gradle에 등록:
+
+```gradle
+// settings.gradle
+rootProject.name = 'platform-service'
+
+include 'common:base'
+include 'common:core'
+include 'common:web'
+
+include 'datasource:base'         // MySQL
+include 'datasource:postgres'     // PostgreSQL (새로 추가)
+include 'datasource:mongodb'      // MongoDB (새로 추가)
+
+include 'api:platform'
+include 'batch:platform'
 ```
 
 ---
 
 ## 10. 성능 고려사항
 
-### 멀티 데이터베이스 환경에서의 성능
+### 멀티 datasource 모듈 환경의 성능
 
 | 시나리오 | 성능 영향 | 대응 방안 |
 |---------|---------|---------|
-| **읽기 복제본** | +20~40% 처리량 | ✅ 권장 |
-| **크로스 DB 조인** | -50~70% 성능 | 캐싱, 동기화 프로세스 |
-| **분산 트랜잭션** | -20~30% 성능 | 보상 트랜잭션 사용 |
-| **샤딩** | -10~20% (관리 오버헤드) | 적절한 샤드 키 선택 |
-
-### 모니터링 포인트
-
-```java
-// 데이터소스별 모니터링
-@Component
-public class DataSourceMetrics {
-    
-    @Bean
-    public MeterBinder hikariMetrics(
-        @Qualifier("platFormDataSource") DataSource dataSource
-    ) {
-        if (dataSource instanceof HikariDataSource) {
-            return new HikariMetrics((HikariDataSource) dataSource);
-        }
-        return NO_OP;
-    }
-}
-```
+| **읽기 복제본 (모듈 내)** | +20~40% 처리량 | ✅ 권장 |
+| **여러 DB 조인** | -50~70% 성능 | 애플리케이션 레벨 조인 |
+| **여러 TransactionManager** | -5~10% (미미) | ✅ 수용 가능 |
+| **모듈별 커넥션 풀** | 메모리 증가 | 풀 사이즈 조정 |
 
 ---
 
-## 11. 결론 및 요약
+## 11. 결론
 
-### 현재 상태
-- ✅ **확장을 위한 기초 구조 마련 완료** (70%)
-- ✅ **배치와 API 간 DataSource 분리 이미 구현** (25%)
-- ⚠️ **읽기/쓰기 분리 부분적 구현** (어노테이션만)
-- ❌ **자동 라우팅 미구현**
-- ❌ **다중 DB 벤더 지원 부족**
+### 현재 아키텍처 평가
 
-### 추천 로드맵
+✅ **매우 우수한 확장성**
+- datasource 모듈 추가 방식으로 완전한 독립성 보장
+- 각 모듈마다 독립적인 jOOQ, Flyway, Repository, TransactionManager
+- 기존 코드 수정 없이 새 DB 추가 가능
 
-**Phase 1 (1주)**: 읽기 복제본 라우팅 추가
-- RoutingDataSource 구현
-- 배치 DB 완전 분리
-- 성능 이득: **20~40% 읽기 처리량 증가**
+✅ **명확한 모듈 경계**
+- 각 datasource 모듈은 완전히 독립적
+- api/batch 모듈에서 필요한 datasource만 선택적으로 의존
 
-**Phase 2 (1개월)**: 다중 DB 벤더 지원
-- PostgreSQL DataSource 추가
-- 별도 jOOQ 설정
-- 마이그레이션 전략 수립
+⚠️ **개선 필요 사항**
+- 배치 매퍼를 datasource/base에서 batch 모듈로 이동
+- 읽기 복제본 라우팅 구현 (datasource/base 내부)
 
-**Phase 3 (3개월)**: 샤딩 / 이벤트 소싱
-- 대규모 데이터 분산
-- 트랜잭션 관리 개선
+### 권장 로드맵
 
-### 주요 성공 요인
-1. **현재 추상화 구조 활용** - 불필요한 코드 수정 최소화
-2. **점진적 확장** - 한 번에 하나씩 추가
-3. **테스트 중심** - DataSource 라우팅 테스트 필수
-4. **모니터링** - 성능 지표 사전 구성
+**Phase 1 (1주 이내)**
+- [ ] 배치 매퍼 분리
+- [ ] 읽기 복제본 설계 문서 작성
+
+**Phase 2 (1개월)**
+- [ ] datasource/base에 읽기 복제본 라우팅 추가
+- [ ] 성능 테스트 및 모니터링
+
+**Phase 3 (3개월, 필요시)**
+- [ ] datasource/postgres 모듈 추가
+- [ ] datasource/mongodb 모듈 추가
+
+**Phase 4 (6개월+, 필요시)**
+- [ ] 샤딩 메커니즘 설계
+- [ ] 분산 트랜잭션 (JTA)
+
+### 핵심 성공 요인
+
+1. **모듈 독립성 유지** - 각 datasource 모듈은 완전히 독립
+2. **점진적 확장** - 필요한 모듈만 추가
+3. **기존 코드 보호** - 새 모듈 추가 시 기존 코드 수정 불필요
+4. **명확한 규칙** - 모든 datasource 모듈은 동일한 구조 유지
 
 ---
 
-**문서 작성일**: 2025-11-16  
+**문서 작성일**: 2025-11-16
 **다음 검토 예정**: 2025-12-16
