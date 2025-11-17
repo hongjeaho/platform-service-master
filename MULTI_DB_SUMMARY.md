@@ -171,25 +171,19 @@ public interface LogRepository extends MongoRepository<Log, String> {
 
 ---
 
-## 즉시 개선 사항 (1주 이내)
+## 현재 구조 분석
 
-### 1. 배치 매퍼 분리
+### batch 매퍼 위치
 
-**현재 문제**:
-```
-datasource/base/src/main/resources/mybatis-mapper/
-└── batch/             ← 배치용인데 datasource/base에 혼재
-    ├── KapaDataMapper.xml
-    └── LtisDataMapper.xml
-```
+**위치**: `datasource/base/src/main/resources/mybatis-mapper/batch/`
 
-**개선 방안**:
-```
-datasource/base에서 batch 매퍼 제거
-→ batch/platform/src/main/resources/mybatis-mapper/로 이동
-```
+**현재 구조는 올바릅니다**:
+- ✅ batch 비즈니스 로직에서 사용
+- ✅ 하지만 쿼리하는 테이블은 **datasource/base의 MySQL 테이블**
+- ✅ batch/platform 모듈이 datasource/base에 의존하여 사용
+- ✅ 따라서 datasource/base에 위치하는 것이 올바른 설계
 
-**효과**: 모듈 경계 명확화, 배치 DB 사용 명시적
+**참고**: batch/platform의 별도 DataSource는 Spring Batch 메타데이터 또는 배치 전용 테이블용입니다.
 
 ---
 
@@ -209,12 +203,7 @@ datasource/base에서 batch 매퍼 제거
 
 ### Phase 1 (1주 이내) - 즉시
 
-**Priority 1**: 배치 매퍼 분리
-- [ ] datasource/base의 batch 매퍼 → batch/platform으로 이동
-- 소요 시간: 1일
-- 효과: 모듈 독립성 향상
-
-**Priority 2**: 읽기 복제본 설계
+**Priority 1**: 읽기 복제본 설계
 - [ ] RoutingDataSource 설계 문서 작성
 - [ ] 성능 테스트 계획 수립
 
@@ -222,7 +211,7 @@ datasource/base에서 batch 매퍼 제거
 
 ### Phase 2 (1개월) - 단기
 
-**Priority 3**: 읽기 복제본 구현 (datasource/base 내부)
+**Priority 2**: 읽기 복제본 구현 (datasource/base 내부)
 - [ ] ReadWriteRoutingDataSource 구현
 - [ ] master/replica 설정 추가
 - [ ] 성능 테스트
@@ -233,14 +222,14 @@ datasource/base에서 batch 매퍼 제거
 
 ### Phase 3 (3개월) - 중기 (필요시)
 
-**Priority 4**: PostgreSQL 모듈 추가
+**Priority 3**: PostgreSQL 모듈 추가
 - [ ] datasource/postgres 모듈 생성
 - [ ] PostgreSQL jOOQ, Flyway 설정
 - [ ] PostgreSQL Repository 작성
 - 소요 시간: 1-2일
 - 효과: 다중 벤더 지원 예시
 
-**Priority 5**: MongoDB 모듈 추가
+**Priority 4**: MongoDB 모듈 추가
 - [ ] datasource/mongodb 모듈 생성
 - [ ] Spring Data MongoDB 설정
 - 소요 시간: 1-2일
@@ -250,12 +239,12 @@ datasource/base에서 batch 매퍼 제거
 
 ### Phase 4 (6개월+) - 장기 (필요시)
 
-**Priority 6**: 샤딩 메커니즘
+**Priority 5**: 샤딩 메커니즘
 - [ ] ShardingDataSource 설계 및 구현
 - 소요 시간: 7-10일
 - 효과: 대규모 데이터 분산
 
-**Priority 7**: 분산 트랜잭션 (JTA)
+**Priority 6**: 분산 트랜잭션 (JTA)
 - [ ] Narayana JTA 도입
 - 소요 시간: 3-5일
 - 주의: 성능 오버헤드 20-30%
@@ -278,20 +267,21 @@ datasource/base에서 batch 매퍼 제거
    - api/batch 모듈에서 필요한 datasource만 선택
    - 사용하지 않는 DB 의존성 없음
 
-### ⚠️ 개선 필요 사항
+### 🎯 개선 권고사항
 
-1. **배치 매퍼 분리** (1일)
-   - datasource/base의 batch 매퍼 → batch/platform으로 이동
-
-2. **읽기 복제본 구현** (2-3일)
+1. **읽기 복제본 구현** (2-3일)
    - datasource/base 내 RoutingDataSource 추가
    - 성능 개선 +20~40%
 
+2. **다중 DB 벤더 지원** (필요시)
+   - datasource/postgres 모듈 추가 (1-2일)
+   - datasource/mongodb 모듈 추가 (1-2일)
+
 ### 🎯 추천 우선순위
 
-**1순위**: 배치 매퍼 분리 (즉시, 1일)
-**2순위**: 읽기 복제본 추가 (단기, 2-3일)
-**3순위**: PostgreSQL 모듈 (필요시, 1-2일)
+**1순위**: 읽기 복제본 추가 (단기, 2-3일)
+**2순위**: PostgreSQL 모듈 (필요시, 1-2일)
+**3순위**: MongoDB 모듈 (필요시, 1-2일)
 
 ---
 

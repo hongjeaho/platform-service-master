@@ -360,15 +360,16 @@ public class MybatisConfig {
 datasource/base/src/main/resources/mybatis-mapper/
 ├── user/
 │   └── UserMapper.xml           # 사용자 조회
-├── batch/                       # ⚠️ 향후 batch 모듈로 이동 권장
-│   ├── KapaDataMapper.xml
-│   ├── LtisDataMapper.xml
+├── batch/                       # 배치 비즈니스에서 사용
+│   ├── KapaDataMapper.xml       # datasource/base 테이블 쿼리
+│   ├── LtisDataMapper.xml       # datasource/base 테이블 쿼리
 │   └── ...
 ```
 
 **분석**:
 - ✅ datasource/base 모듈에서 MySQL 전용 Mapper 관리
-- ⚠️ 배치 관련 Mapper는 향후 별도 모듈로 분리 권장
+- ✅ batch 매퍼는 datasource/base의 테이블을 쿼리하므로 여기에 위치하는 것이 올바름
+- ✅ batch/platform 모듈이 datasource/base에 의존하여 이 매퍼들을 사용
 
 ---
 
@@ -904,37 +905,24 @@ public interface LogRepository extends MongoRepository<Log, String> {
 
 | 우선순위 | 작업 | 이유 | 예상 기간 |
 |---------|------|------|---------|
-| **1순위** | 배치 매퍼 분리 | 구조 정리, 모듈 독립성 | 1일 |
-| **2순위** | 읽기 복제본 (datasource/base 내) | 성능 개선 + 복잡도 낮음 | 2-3일 |
-| **3순위** | datasource/postgres 모듈 추가 | 다중 벤더 지원 예시 | 1-2일 |
-| **4순위** | datasource/mongodb 모듈 추가 | NoSQL 지원 | 1-2일 |
-| **5순위** | 샤딩 (필요시) | 대규모 데이터 | 7-10일 |
+| **1순위** | 읽기 복제본 (datasource/base 내) | 성능 개선 + 복잡도 낮음 | 2-3일 |
+| **2순위** | datasource/postgres 모듈 추가 | 다중 벤더 지원 예시 | 1-2일 |
+| **3순위** | datasource/mongodb 모듈 추가 | NoSQL 지원 | 1-2일 |
+| **4순위** | 샤딩 (필요시) | 대규모 데이터 | 7-10일 |
 
-### 8.2 즉시 개선 사항
+### 8.2 개선 권고사항
 
-#### 1. 배치 매퍼를 batch 모듈로 이동
+#### 현재 구조 분석
 
-**현재 문제**:
-```
-datasource/base/src/main/resources/mybatis-mapper/
-├── user/              ← 플랫폼용 (OK)
-└── batch/             ← 배치용 (datasource/base에 혼재)
-    ├── KapaDataMapper.xml
-    └── LtisDataMapper.xml
-```
+**batch 매퍼 위치**: `datasource/base/src/main/resources/mybatis-mapper/batch/`
 
-**개선 후**:
-```
-datasource/base/src/main/resources/mybatis-mapper/
-└── user/              ← 플랫폼용만
+이 매퍼들은 올바른 위치에 있습니다:
+- ✅ batch 비즈니스 로직에서 사용되지만
+- ✅ 쿼리하는 테이블은 **datasource/base의 MySQL 테이블**
+- ✅ batch/platform 모듈이 datasource/base에 의존하여 사용
+- ✅ 따라서 datasource/base에 위치하는 것이 올바른 설계
 
-batch/platform/src/main/resources/mybatis-mapper/
-└── batch/             ← 배치 전용
-    ├── KapaDataMapper.xml
-    └── LtisDataMapper.xml
-```
-
-**효과**: 모듈 경계 명확화, 배치 DB 사용 명시적
+**참고**: batch/platform의 별도 DataSource는 Spring Batch 메타데이터 또는 배치 전용 테이블에 사용됩니다
 
 ---
 
