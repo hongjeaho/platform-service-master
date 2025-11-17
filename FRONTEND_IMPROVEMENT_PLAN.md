@@ -81,6 +81,13 @@ src/
 | **Orval 실행 시간** | ~10-15초 | 네트워크 + 생성 + ESLint |
 | **빌드 시간 영향** | ~3-5초 | 타입 체크 시간 증가 |
 
+### Git 관리 현황
+
+✅ **이미 설정 완료**:
+- 루트 `.gitignore`에 `front/platform/src/api` 및 `front/platform/src/model` 설정됨
+- 생성 파일은 Git에 커밋되지 않음
+- 각 개발자가 로컬에서 `yarn orval-fix` 실행 필요
+
 ---
 
 ## 문제점 상세
@@ -409,31 +416,30 @@ src/
 
 **목표**: 자동 생성 파일의 Git 충돌 최소화
 
-#### 구현 방법
+#### 현재 상태
 
-**방법 A: .gitignore에 추가 (가장 간단)**
+✅ **이미 완료**: `.gitignore`에 생성 파일 무시 설정
 
+루트 `.gitignore` 파일 45-46번 라인:
 ```gitignore
-# front/platform/.gitignore
-
-# Orval 자동 생성 파일 (선택적 무시)
-src/api/
-src/model/
-
-# 단, 첫 설치 시에는 포함 필요
-!src/api/.gitkeep
-!src/model/.gitkeep
+front/platform/src/api
+front/platform/src/model
 ```
 
-**장점**:
-- Git 충돌 완전히 제거
-- 각 개발자가 로컬에서 생성
+**현재 동작**:
+- ✅ 생성 파일이 Git에 커밋되지 않음
+- ✅ 각 개발자가 로컬에서 `yarn orval-fix` 실행
+- ✅ Git 충돌 완전히 제거됨
 
-**단점**:
-- CI/CD에서 백엔드 서버 필요
-- 새 개발자 온보딩 시 추가 단계
+**CI/CD 고려사항**:
+- CI/CD 파이프라인에서 백엔드 API 접근 필요
+- 빌드 전 `yarn orval-fix` 자동 실행 필요
 
-**방법 B: Git 속성 설정**
+#### 추가 개선 방법
+
+**방법 A: Git 속성 설정 (선택적)**
+
+만약 생성 파일을 Git에 포함하기로 결정한다면:
 
 ```gitattributes
 # front/platform/.gitattributes
@@ -443,9 +449,9 @@ src/api/** merge=ours
 src/model/** merge=ours
 ```
 
-이렇게 하면 충돌 시 자동으로 "우리 쪽" 버전 사용.
+충돌 시 자동으로 "우리 쪽" 버전 사용.
 
-**방법 C: 생성 시 타임스탬프 제거**
+**방법 B: 생성 시 타임스탬프 제거 (선택적)**
 
 ```typescript
 // config/orval.config.ts
@@ -566,11 +572,11 @@ export interface ReceiptWithUI extends ReceiptDto {
 
 **목표**: 빠른 개선, 부작용 최소화
 
-| 작업 | 소요 시간 | 담당자 | 우선순위 |
-|------|----------|--------|---------|
-| 1. 선택적 API 생성 설정 | 1시간 | 프론트 리드 | ⭐⭐⭐ 높음 |
-| 2. 타입 디렉토리 재구성 | 2시간 | 전체 팀 | ⭐⭐⭐ 높음 |
-| 3. Git 충돌 방지 설정 | 30분 | 프론트 리드 | ⭐⭐ 중간 |
+| 작업 | 소요 시간 | 담당자 | 우선순위 | 상태 |
+|------|----------|--------|---------|------|
+| 1. 선택적 API 생성 설정 | 1시간 | 프론트 리드 | ⭐⭐⭐ 높음 | ⏳ 대기 |
+| 2. 타입 디렉토리 재구성 | 2시간 | 전체 팀 | ⭐⭐⭐ 높음 | ⏳ 대기 |
+| 3. Git 충돌 방지 설정 | - | - | - | ✅ 완료 |
 
 **실행 단계**:
 
@@ -672,9 +678,9 @@ yarn orval-smart  # 재생성 확인
 
 ### 위험 1: CI/CD 파이프라인 영향
 
-**위험**:
-- .gitignore에 src/api, src/model 추가 시
-- CI/CD에서 빌드 실패 가능
+**현재 상황**:
+- ✅ .gitignore에 이미 src/api, src/model 설정됨
+- ⚠️ CI/CD에서 API 생성 필요
 
 **대응**:
 ```yaml
@@ -720,7 +726,7 @@ yarn orval-smart  # 재생성 확인
 - [ ] config/orval.config.ts에 filters.tags 추가
 - [ ] yarn orval-fix 실행 후 파일 수 감소 확인
 - [ ] src/types/ 디렉토리 생성 및 타입 이동
-- [ ] .gitattributes 또는 .gitignore 설정
+- [x] .gitignore 설정 (✅ 이미 완료)
 - [ ] 팀 공유 및 문서 업데이트
 
 ### Phase 2 완료 조건
